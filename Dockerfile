@@ -35,4 +35,4 @@ ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
 # Script para rodar migrations antes de iniciar a aplicação
-CMD npx prisma migrate deploy && node server.js
+CMD npx prisma@6.4.1 migrate deploy && node server.js
