@@ -25,11 +25,14 @@ export async function POST(req: Request) {
             const { sendWhatsapp, sendMedia } = await import("@/lib/evolution");
 
             // 1. Mensagem para o Cliente
-            const customerGroupUrl = settings?.customerGroupUrl || "https://chat.whatsapp.com/exemplo";
+            const communityGroupUrl = settings?.communityGroupUrl || "https://chat.whatsapp.com/exemplo";
+            const videoUrl = settings?.videoUrl || "https://mega2ai.com/ajuda";
+
             const message = `🎉 *Parabéns, ${name}!* Seu teste grátis do *mega_2ai* foi ativado!\n\n` +
                 `📦 *Plano:* ${planName}\n\n` +
                 `⏳ Em instantes, o nosso administrador enviará a sua *Chave de Licença* de acesso por aqui mesmo.\n\n` +
-                `👥 *Acesse nosso Grupo Exclusivo de Clientes VIPs:* ${customerGroupUrl}\n\n` +
+                `📹 *Vídeo Tutorial de Instalação:* ${videoUrl}\n` +
+                `👥 *Acesse nossa Comunidade:* ${communityGroupUrl}\n\n` +
                 `Enquanto isso, já estou enviando abaixo o arquivo da extensão para você baixar e instalar. 👇`;
 
             await sendWhatsapp(whatsapp, message);

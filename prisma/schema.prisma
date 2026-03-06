@@ -57,6 +57,7 @@ model Settings {
   customerGroupUrl  String   @default("https://chat.whatsapp.com/exemplo-clientes")
   communityGroupName String  @default("Comunidade Mega_2ai")
   communityGroupUrl String   @default("https://chat.whatsapp.com/exemplo-comunidade")
+  videoUrl          String   @default("https://youtube.com/link-do-tutorial")
   updatedAt         DateTime @updatedAt
 }
 

@@ -71,12 +71,13 @@ export async function POST(req: Request) {
                 const settings = await prisma.settings.findUnique({ where: { id: "global" } });
                 const customerGroupUrl = settings?.customerGroupUrl || "https://chat.whatsapp.com/exemplo";
                 const extensionUrl = settings?.extensionUrl || "https://mega2ai.com/download/mega_2ai_v2.zip";
+                const videoUrl = settings?.videoUrl || "https://mega2ai.com/ajuda";
 
                 // 9. Enviar Mensagem de 'Parabéns' para o Cliente via WhatsApp
                 const message = `🎉 *Parabéns, ${client.name}!* Seu pagamento foi aprovado!\n\n` +
                     `📦 *Plano Adquirido:* ${planName}\n\n` +
                     `⏳ Nosso administrador já foi notificado da sua compra e enviará a sua *Chave de Licença* de acesso por aqui mesmo em instantes.\n\n` +
-                    `📺 *Tutoriais de Instalação:* https://mega2ai.com/ajuda\n` +
+                    `📹 *Vídeo Tutorial de Instalação:* ${videoUrl}\n` +
                     `👥 *Acesse nosso Grupo Exclusivo VIP:* ${customerGroupUrl}\n\n` +
                     `Enquanto aguarda sua licença, já estou enviando abaixo o arquivo da extensão para você baixar. 👇`;
 

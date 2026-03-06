@@ -65,6 +65,7 @@ interface Settings {
     customerGroupUrl: string;
     communityGroupName: string;
     communityGroupUrl: string;
+    videoUrl: string;
 }
 
 export default function AdminPanel() {
@@ -85,6 +86,7 @@ export default function AdminPanel() {
         customerGroupUrl: "",
         communityGroupName: "",
         communityGroupUrl: "",
+        videoUrl: "",
     });
 
     const fetchData = async () => {
@@ -538,7 +540,7 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify }:
 
 function SettingsView({ settings, setSettings, onSave, loading, message }: {
     settings: Settings,
-    setSettings: (s: Settings) => void,
+    setSettings: React.Dispatch<React.SetStateAction<Settings>>,
     onSave: () => void,
     loading: boolean,
     message: string
@@ -583,7 +585,7 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                         });
                                         const data = await res.json();
                                         if (data.success) {
-                                            setSettings(s => ({ ...s, extensionUrl: data.url }));
+                                            setSettings((s: Settings) => ({ ...s, extensionUrl: data.url }));
                                             alert("Extensão atualizada com sucesso!");
                                         }
                                     } catch (err) {
@@ -611,6 +613,33 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                             <p className="text-emerald-400/80 text-[11px] leading-relaxed">
                                 💡 <strong>Dica de Atualização:</strong> Você pode clicar no botão <b>Fazer Upload</b> acima para subir o novo arquivo .ZIP diretamente para o servidor. O sistema atualizará o link automaticamente.
                             </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Tutorial / Vídeo */}
+                <section className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40 relative overflow-hidden">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="p-3 bg-purple-500/20 rounded-2xl">
+                            <FileCode className="text-purple-500 w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold font-display uppercase tracking-tight">Vídeo Tutorial</h2>
+                            <p className="text-slate-500 text-xs mt-1">Link enviado para o cliente após a compra</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6 relative z-10">
+                        <div>
+                            <label htmlFor="videoUrl" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Link do Vídeo (YouTube/Vimeo)</label>
+                            <input
+                                id="videoUrl"
+                                type="text"
+                                value={settings.videoUrl}
+                                onChange={(e) => setSettings({ ...settings, videoUrl: e.target.value })}
+                                className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-purple-400 font-mono text-sm focus:border-purple-500/50 outline-none transition-all"
+                                placeholder="https://youtube.com/watch?v=..."
+                            />
                         </div>
                     </div>
                 </section>
