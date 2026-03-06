@@ -545,6 +545,8 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
     loading: boolean,
     message: string
 }) {
+    const [localUploading, setLocalUploading] = useState(false);
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
@@ -564,17 +566,29 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                             </div>
                         </div>
 
-                        <label className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer hover:bg-white/10 transition-all">
-                            <Upload size={16} className="text-emerald-500" />
-                            Fazer Upload
+                        <label className={`
+                            relative overflow-hidden px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer transition-all border
+                            ${localUploading
+                                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-500 cursor-not-allowed"
+                                : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                            }
+                        `}>
+                            {localUploading ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Upload size={16} className="text-emerald-500" />
+                            )}
+                            {localUploading ? "Enviando..." : "Fazer Upload"}
                             <input
                                 type="file"
-                                className="hidden"
+                                className="sr-only"
                                 accept=".zip"
+                                disabled={localUploading}
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
 
+                                    setLocalUploading(true);
                                     const formData = new FormData();
                                     formData.append("file", file);
 
@@ -587,10 +601,15 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                         if (data.success) {
                                             setSettings((s: Settings) => ({ ...s, extensionUrl: data.url }));
                                             alert("Extensão atualizada com sucesso!");
+                                        } else {
+                                            alert("Falha: " + (data.error || "Desconhecido"));
                                         }
                                     } catch (err) {
                                         console.error(err);
                                         alert("Erro ao subir arquivo");
+                                    } finally {
+                                        setLocalUploading(false);
+                                        e.target.value = ""; // Reset input
                                     }
                                 }}
                             />
