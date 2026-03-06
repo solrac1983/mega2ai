@@ -16,6 +16,7 @@ import {
   Users,
   MousePointer2
 } from "lucide-react";
+import Link from "next/link";
 import CheckoutModal from "@/components/CheckoutModal";
 
 const plans = [
@@ -164,9 +165,11 @@ export default function LandingPage() {
             <a href="#planos" className="hover:text-cyan-400 transition-colors">Preços</a>
             <a href="https://wa.me/5584996706253" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">Suporte</a>
           </div>
-          <button className="text-white border-2 border-white px-8 py-3 font-black text-sm uppercase hover:bg-white hover:text-black transition-all">
-            LOGIN MEMBROS
-          </button>
+          <Link href="/admin">
+            <button className="text-white border-2 border-white px-8 py-3 font-black text-sm uppercase hover:bg-white hover:text-black transition-all">
+              ADMIN
+            </button>
+          </Link>
         </div>
       </motion.nav>
 
