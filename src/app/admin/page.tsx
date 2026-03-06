@@ -1,14 +1,77 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Save, Download, Users, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    Save,
+    Download,
+    Users,
+    CheckCircle2,
+    Loader2,
+    ShieldCheck,
+    LayoutDashboard,
+    Settings as SettingsIcon,
+    History,
+    TrendingUp,
+    DollarSign,
+    UserPlus,
+    FileCode,
+    LogOut,
+    Search,
+    RefreshCw
+} from "lucide-react";
 
-export default function AdminSettings() {
+type Tab = "dashboard" | "clients" | "settings";
+
+interface DashboardData {
+    stats: {
+        totalClients: number;
+        approvedSales: number;
+        freeTrials: number;
+        totalRevenue: number;
+        conversionRate: string;
+    };
+    recentClients: {
+        id: string;
+        name: string;
+        email: string;
+        whatsapp: string;
+        createdAt: string;
+    }[];
+    salesByPlan: {
+        amount: number;
+        _count: { id: number };
+        _sum: { amount: number };
+    }[];
+}
+
+interface Client {
+    id: string;
+    name: string;
+    email: string;
+    whatsapp: string;
+    createdAt: string;
+    payments: { status: string; createdAt: string }[];
+}
+
+interface Settings {
+    extensionUrl: string;
+    customerGroupName: string;
+    customerGroupUrl: string;
+    communityGroupName: string;
+    communityGroupUrl: string;
+}
+
+export default function AdminPanel() {
+    const [activeTab, setActiveTab] = useState<Tab>("dashboard");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
     const [message, setMessage] = useState("");
-    const [settings, setSettings] = useState({
+
+    // Data states
+    const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+    const [clients, setClients] = useState<Client[]>([]);
+    const [settings, setSettings] = useState<Settings>({
         extensionUrl: "",
         customerGroupName: "",
         customerGroupUrl: "",
@@ -16,16 +79,34 @@ export default function AdminSettings() {
         communityGroupUrl: "",
     });
 
+    const fetchData = async () => {
+        setFetching(true);
+        try {
+            const [dashRes, clientsRes, settingsRes] = await Promise.all([
+                fetch("/api/admin/dashboard"),
+                fetch("/api/admin/clients"),
+                fetch("/api/admin/settings")
+            ]);
+
+            const dash: DashboardData = await dashRes.json();
+            const cls: Client[] = await clientsRes.json();
+            const sett: Settings = await settingsRes.json();
+
+            setDashboardData(dash);
+            setClients(cls);
+            setSettings(sett);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setFetching(false);
+        }
+    };
+
     useEffect(() => {
-        fetch("/api/admin/settings")
-            .then(res => res.json())
-            .then(data => {
-                setSettings(data);
-                setFetching(false);
-            });
+        fetchData();
     }, []);
 
-    const handleSave = async () => {
+    const handleSaveSettings = async () => {
         setLoading(true);
         try {
             const res = await fetch("/api/admin/settings", {
@@ -34,8 +115,9 @@ export default function AdminSettings() {
                 body: JSON.stringify(settings),
             });
             if (res.ok) {
-                setMessage("Configurações atualizadas com sucesso!");
+                setMessage("Configurações atualizadas!");
                 setTimeout(() => setMessage(""), 3000);
+                fetchData();
             }
         } catch (error) {
             console.error(error);
@@ -44,14 +126,12 @@ export default function AdminSettings() {
         }
     };
 
-    const handleLogout = async () => {
-        // Just clear the cookie (simplest way is calling an API or just redirecting if cookie is set to expire)
-        // For simplicity, we can create a logout route or just set document.cookie
+    const handleLogout = () => {
         document.cookie = "admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
         window.location.href = "/login";
     };
 
-    if (fetching) {
+    if (fetching && !dashboardData) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
@@ -60,132 +140,414 @@ export default function AdminSettings() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-950 text-white p-8 md:p-20">
-            <div className="max-w-4xl mx-auto">
-                <header className="mb-12 flex items-center justify-between">
+        <main className="min-h-screen bg-slate-950 text-white flex">
+            {/* Sidebar */}
+            <aside className="w-64 border-r border-white/5 bg-slate-950/50 backdrop-blur-xl flex flex-col p-6 fixed h-full z-50">
+                <div className="flex items-center gap-3 mb-12">
+                    <ShieldCheck className="text-cyan-500 w-8 h-8" />
+                    <span className="font-black text-xl tracking-tighter uppercase font-display">MEGA_2AI</span>
+                </div>
+
+                <nav className="flex flex-col gap-2 flex-1">
+                    <SidebarLink
+                        active={activeTab === "dashboard"}
+                        onClick={() => setActiveTab("dashboard")}
+                        icon={<LayoutDashboard size={20} />}
+                        label="Dashboard"
+                    />
+                    <SidebarLink
+                        active={activeTab === "clients"}
+                        onClick={() => setActiveTab("clients")}
+                        icon={<Users size={20} />}
+                        label="Clientes"
+                    />
+                    <SidebarLink
+                        active={activeTab === "settings"}
+                        onClick={() => setActiveTab("settings")}
+                        icon={<SettingsIcon size={20} />}
+                        label="Configurações"
+                    />
+                </nav>
+
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-3 p-4 rounded-2xl text-slate-500 hover:text-white hover:bg-white/5 transition-all outline-none font-bold text-sm"
+                >
+                    <LogOut size={20} />
+                    Sair do Painel
+                </button>
+            </aside>
+
+            {/* Content Area */}
+            <div className="flex-1 ml-64 p-12">
+                <header className="flex justify-between items-center mb-12">
                     <div>
-                        <h1 className="text-4xl font-black uppercase tracking-tighter flex items-center gap-3">
-                            <ShieldCheck className="text-cyan-500 w-10 h-10" />
-                            Gestão <span className="text-cyan-500">Mega_2ai</span>
+                        <h1 className="text-3xl font-black uppercase tracking-tighter">
+                            {activeTab === "dashboard" && "Dashboard Geral"}
+                            {activeTab === "clients" && "Gestão de Leads"}
+                            {activeTab === "settings" && "Configurações Globais"}
                         </h1>
-                        <p className="text-slate-500 mt-2 font-mono uppercase text-xs tracking-widest">Painel Administrativo de Links e Arquivos</p>
+                        <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1">
+                            {activeTab === "dashboard" ? "Acompanhamento em tempo real" : "Gerenciamento da plataforma"}
+                        </p>
                     </div>
+
                     <button
-                        onClick={handleLogout}
-                        className="text-slate-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+                        onClick={fetchData}
+                        className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 transition-all"
+                        title="Atualizar dados"
                     >
-                        Sair do Painel
+                        <RefreshCw size={18} className={fetching ? "animate-spin" : ""} />
                     </button>
                 </header>
 
-                <div className="grid grid-cols-1 gap-8">
-                    {/* Arquivo da Extensão */}
-                    <section className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-emerald-500/20 rounded-lg">
-                                <Download className="text-emerald-500 w-6 h-6" />
-                            </div>
-                            <h2 className="text-xl font-bold uppercase tracking-tight">Arquivo da Extensão</h2>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Link Direto para Download (.zip)</label>
-                                <input
-                                    type="text"
-                                    value={settings.extensionUrl}
-                                    onChange={(e) => setSettings({ ...settings, extensionUrl: e.target.value })}
-                                    className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-emerald-400 font-mono text-sm focus:border-emerald-500/50 transition-all outline-none"
-                                    placeholder="https://..."
-                                />
-                                <p className="text-slate-600 text-[10px] mt-2 px-1 italic">*Este link é o que será enviado no WhatsApp automaticamente após a compra.</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Grupos de WhatsApp */}
-                    <section className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-cyan-500/20 rounded-lg">
-                                <Users className="text-cyan-500 w-6 h-6" />
-                            </div>
-                            <h2 className="text-xl font-bold uppercase tracking-tight">Grupos de WhatsApp</h2>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <h3 className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">Grupo de Clientes (Pós-Venda)</h3>
-                                <div>
-                                    <label htmlFor="customerGroupName" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome do Grupo</label>
-                                    <input
-                                        id="customerGroupName"
-                                        type="text"
-                                        value={settings.customerGroupName}
-                                        onChange={(e) => setSettings({ ...settings, customerGroupName: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-cyan-500/50 transition-all outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="customerGroupUrl" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
-                                    <input
-                                        id="customerGroupUrl"
-                                        type="text"
-                                        value={settings.customerGroupUrl}
-                                        onChange={(e) => setSettings({ ...settings, customerGroupUrl: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-cyan-400 font-mono text-xs focus:border-cyan-500/50 transition-all outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className="text-xs font-black text-yellow-500 uppercase tracking-widest mb-4">Comunidade (Possíveis Clientes)</h3>
-                                <div>
-                                    <label htmlFor="communityGroupName" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome da Comunidade</label>
-                                    <input
-                                        id="communityGroupName"
-                                        type="text"
-                                        value={settings.communityGroupName}
-                                        onChange={(e) => setSettings({ ...settings, communityGroupName: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-yellow-500/50 transition-all outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label htmlFor="communityGroupUrl" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
-                                    <input
-                                        id="communityGroupUrl"
-                                        type="text"
-                                        value={settings.communityGroupUrl}
-                                        onChange={(e) => setSettings({ ...settings, communityGroupUrl: e.target.value })}
-                                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-yellow-400 font-mono text-xs focus:border-yellow-500/50 transition-all outline-none"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <footer className="flex items-center justify-between pt-8">
-                        <div className="flex items-center gap-2">
-                            {message && (
-                                <motion.div
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    className="flex items-center gap-2 text-emerald-500 font-bold text-sm"
-                                >
-                                    <CheckCircle2 className="w-5 h-5" />
-                                    {message}
-                                </motion.div>
-                            )}
-                        </div>
-                        <button
-                            onClick={handleSave}
-                            disabled={loading}
-                            className="bg-white text-black px-10 py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-3 hover:bg-cyan-500 transition-all shadow-[8px_8px_0px_rgba(255,255,255,0.1)] active:translate-x-1 active:translate-y-1 active:shadow-none"
-                        >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                            Salvar Alterações
-                        </button>
-                    </footer>
-                </div>
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {activeTab === "dashboard" && dashboardData && <DashboardView data={dashboardData} />}
+                        {activeTab === "clients" && <ClientsView clients={clients} />}
+                        {activeTab === "settings" && (
+                            <SettingsView
+                                settings={settings}
+                                setSettings={setSettings}
+                                onSave={handleSaveSettings}
+                                loading={loading}
+                                message={message}
+                            />
+                        )}
+                    </motion.div>
+                </AnimatePresence>
             </div>
         </main>
+    );
+}
+
+function SidebarLink({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-3 p-4 rounded-2xl font-bold transition-all ${active
+                ? "bg-cyan-500 text-slate-950 shadow-[0_10px_20px_rgba(6,182,212,0.2)]"
+                : "text-slate-500 hover:text-white hover:bg-white/5"
+                }`}
+        >
+            {icon}
+            {label}
+        </button>
+    );
+}
+
+function DashboardView({ data }: { data: DashboardData }) {
+    if (!data) return null;
+
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <StatCard
+                    icon={<UserPlus className="text-blue-500" />}
+                    label="Total de Leads"
+                    value={data.stats.totalClients}
+                />
+                <StatCard
+                    icon={<RefreshCw className="text-purple-500" />}
+                    label="Testes Grátis"
+                    value={data.stats.freeTrials}
+                />
+                <StatCard
+                    icon={<CheckCircle2 className="text-emerald-500" />}
+                    label="Vendas Pagas"
+                    value={data.stats.approvedSales}
+                />
+                <StatCard
+                    icon={<DollarSign className="text-yellow-500" />}
+                    label="Faturamento"
+                    value={`R$ ${data.stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                />
+                <StatCard
+                    icon={<TrendingUp className="text-cyan-500" />}
+                    label="Conversão (Vendas)"
+                    value={`${data.stats.conversionRate}%`}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
+                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                        <History size={20} className="text-cyan-500" />
+                        Últimos Leads Registrados
+                    </h3>
+                    <div className="space-y-4">
+                        {data.recentClients.map((client) => (
+                            <div key={client.id} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5">
+                                <div>
+                                    <p className="font-bold text-sm">{client.name}</p>
+                                    <p className="text-slate-500 text-xs">{client.email}</p>
+                                </div>
+                                <div className="text-right text-xs font-mono text-slate-400">
+                                    {new Date(client.createdAt).toLocaleDateString()}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
+                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                        <History size={20} className="text-cyan-500" />
+                        Distribuição por Planos (Pagos)
+                    </h3>
+                    <div className="space-y-4">
+                        {data.salesByPlan.map((plan, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5">
+                                <div>
+                                    <p className="font-bold text-sm">Valor Pago: R$ {plan.amount}</p>
+                                    <p className="text-slate-500 text-xs">{plan._count.id} vendas</p>
+                                </div>
+                                <div className="text-right text-sm font-bold text-emerald-500">
+                                    R$ {plan._sum.amount.toLocaleString('pt-BR')}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ClientsView({ clients }: { clients: Client[] }) {
+    const [search, setSearch] = useState("");
+
+    const filtered = clients.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.toLowerCase().includes(search.toLowerCase()) ||
+        c.whatsapp.includes(search)
+    );
+
+    return (
+        <div className="space-y-6">
+            <div className="relative max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <input
+                    type="text"
+                    placeholder="Buscar por nome, email ou WhatsApp..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-6 py-4 outline-none focus:border-cyan-500/50 transition-all font-medium"
+                />
+            </div>
+
+            <div className="glass-card rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="bg-black/20 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-white/5">
+                            <th className="px-8 py-6">Cliente</th>
+                            <th className="px-8 py-6">WhatsApp</th>
+                            <th className="px-8 py-6">Status Pagamento</th>
+                            <th className="px-8 py-6">Data de Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {filtered.map((client) => {
+                            const lastPayment = client.payments[0];
+                            return (
+                                <tr key={client.id} className="hover:bg-white/5 transition-colors group">
+                                    <td className="px-8 py-6">
+                                        <p className="font-bold text-sm group-hover:text-cyan-400 transition-colors">{client.name}</p>
+                                        <p className="text-slate-500 text-xs">{client.email}</p>
+                                    </td>
+                                    <td className="px-8 py-6 text-xs font-mono">{client.whatsapp}</td>
+                                    <td className="px-8 py-6">
+                                        {lastPayment ? (
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${lastPayment.status === "APPROVED"
+                                                ? "bg-emerald-500/10 text-emerald-500"
+                                                : "bg-yellow-500/10 text-yellow-500"
+                                                }`}>
+                                                {lastPayment.status === "APPROVED" ? "Aprovado" : "Pendente"}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-600 text-[10px] uppercase font-bold tracking-widest italic">Apenas Lead</span>
+                                        )}
+                                    </td>
+                                    <td className="px-8 py-6 text-xs text-slate-400 font-mono">
+                                        {new Date(client.createdAt).toLocaleString()}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
+function SettingsView({ settings, setSettings, onSave, loading, message }: {
+    settings: Settings,
+    setSettings: (s: Settings) => void,
+    onSave: () => void,
+    loading: boolean,
+    message: string
+}) {
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
+                {/* Extensão */}
+                <section className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-5">
+                        <FileCode size={120} />
+                    </div>
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="p-3 bg-emerald-500/20 rounded-2xl">
+                            <Download className="text-emerald-500 w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold font-display uppercase tracking-tight">Arquivo da Extensão</h2>
+                            <p className="text-slate-500 text-xs mt-1">Este arquivo é entregue automaticamente via WhatsApp</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6 relative z-10">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">URL Direta para Versão Atual (.zip)</label>
+                            <input
+                                type="text"
+                                value={settings.extensionUrl}
+                                onChange={(e) => setSettings({ ...settings, extensionUrl: e.target.value })}
+                                className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-emerald-400 font-mono text-sm focus:border-emerald-500/50 outline-none transition-all"
+                                placeholder="https://mega2ai.com/download/version.zip"
+                            />
+                        </div>
+
+                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
+                            <p className="text-emerald-400/80 text-[11px] leading-relaxed">
+                                💡 <strong>Dica de Atualização:</strong> Quando você lançar uma versão nova, suba o arquivo no seu hosting e substitua o link acima. O sistema enviará automaticamente o novo arquivo nos próximos checkouts.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Grupos */}
+                <section className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="p-3 bg-cyan-500/20 rounded-2xl">
+                            <Users className="text-cyan-500 w-6 h-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold font-display uppercase tracking-tight">Comunicação WhatsApp</h2>
+                            <p className="text-slate-500 text-xs mt-1">Links de convite gerados após a conversão</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <h3 className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.2em] mb-4">Fluxo Pós-Venda</h3>
+                            <div>
+                                <label htmlFor="customerGroupName" className="block text-[10px] font-bold text-slate-600 uppercase mb-2 ml-1">Nome do Grupo VIP</label>
+                                <input
+                                    id="customerGroupName"
+                                    type="text"
+                                    value={settings.customerGroupName}
+                                    onChange={(e) => setSettings({ ...settings, customerGroupName: e.target.value })}
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-cyan-500/50 outline-none transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="customerGroupUrl" className="block text-[10px] font-bold text-slate-600 uppercase mb-2 ml-1">Link de Convite (WhatsApp)</label>
+                                <input
+                                    id="customerGroupUrl"
+                                    type="text"
+                                    value={settings.customerGroupUrl}
+                                    onChange={(e) => setSettings({ ...settings, customerGroupUrl: e.target.value })}
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-cyan-400 font-mono text-[10px] focus:border-cyan-500/50 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h3 className="text-[10px] font-black text-yellow-500 uppercase tracking-[0.2em] mb-4">Fluxo de Nutrição</h3>
+                            <div>
+                                <label htmlFor="communityGroupName" className="block text-[10px] font-bold text-slate-600 uppercase mb-2 ml-1">Nome da Comunidade</label>
+                                <input
+                                    id="communityGroupName"
+                                    type="text"
+                                    value={settings.communityGroupName}
+                                    onChange={(e) => setSettings({ ...settings, communityGroupName: e.target.value })}
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="communityGroupUrl" className="block text-[10px] font-bold text-slate-600 uppercase mb-2 ml-1">Link de Convite (WhatsApp)</label>
+                                <input
+                                    id="communityGroupUrl"
+                                    type="text"
+                                    value={settings.communityGroupUrl}
+                                    onChange={(e) => setSettings({ ...settings, communityGroupUrl: e.target.value })}
+                                    className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-yellow-400 font-mono text-[10px] focus:border-yellow-500/50 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div className="space-y-8">
+                <section className="glass-card p-6 rounded-3xl border border-white/5 bg-slate-900/40">
+                    <h3 className="font-bold mb-4 uppercase text-xs tracking-widest text-slate-400">Publicar Mudanças</h3>
+                    <p className="text-slate-500 text-[10px] mb-6 leading-relaxed">
+                        As alterações nos links e grupos entram em vigor imediatamente para todos os novos checkouts e mensagens automáticas.
+                    </p>
+
+                    {message && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl mb-6 text-emerald-500 text-xs font-bold flex items-center gap-2"
+                        >
+                            <CheckCircle2 size={16} />
+                            {message}
+                        </motion.div>
+                    )}
+
+                    <button
+                        onClick={onSave}
+                        disabled={loading}
+                        className="w-full bg-white text-slate-950 py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-cyan-500 transition-all shadow-[0_15px_30px_rgba(255,255,255,0.05)] disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        Salvar Ajustes
+                    </button>
+                </section>
+
+                <div className="bg-blue-500/10 border border-blue-500/20 p-6 rounded-3xl">
+                    <h4 className="text-blue-400 font-bold text-xs uppercase mb-2">Suporte do Desenvolvedor</h4>
+                    <p className="text-slate-500 text-[10px] leading-relaxed mb-4">
+                        Caso precise gerenciar licenças manualmente ou visualizar logs do servidor, acesse o painel da VPS ou contate o suporte.
+                    </p>
+                    <a href="https://wa.me/5584996706253" target="_blank" rel="noopener noreferrer" className="text-blue-400 text-[10px] font-bold hover:underline">
+                        Abrir chamado técnico &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: string | number }) {
+    return (
+        <div className="glass-card p-6 rounded-3xl border border-white/5 bg-slate-900/40 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                {icon}
+            </div>
+            <div className="relative z-10">
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+                <p className="text-xl font-black font-display text-white">{value}</p>
+            </div>
+        </div>
     );
 }
