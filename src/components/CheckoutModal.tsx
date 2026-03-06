@@ -6,6 +6,7 @@ import * as z from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
 import { useState } from "react";
+import TransparentCheckout from "./TransparentCheckout";
 
 const schema = z.object({
     name: z.string().min(3, "Nome muito curto"),
@@ -25,6 +26,8 @@ interface Props {
 
 export default function CheckoutModal({ isOpen, onClose, planId, planName, price }: Props) {
     const [loading, setLoading] = useState(false);
+    const [step, setStep] = useState<"info" | "payment" | "success">("info");
+    const [clientData, setClientData] = useState<FormData | null>(null);
 
     const {
         register,
@@ -51,31 +54,31 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
     const onSubmit = async (data: FormData) => {
         setLoading(true);
         try {
-            const response = await fetch("/api/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...data,
-                    planId,
-                    planName,
-                    price,
-                }),
-            });
+            // Se for grátis, segue o fluxo antigo pelo checkout/route.ts
+            if (Number(price.replace(",", ".")) === 0) {
+                const response = await fetch("/api/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        ...data,
+                        planId,
+                        planName,
+                        price,
+                    }),
+                });
 
-            const result = await response.json();
+                const result = await response.json();
 
-            if (result.free) {
-                // Redireciona direto para obrigado se for grátis
-                window.location.href = "/obrigado?plan=free";
-                return;
+                if (result.free) {
+                    window.location.href = "/obrigado?plan=free";
+                    return;
+                }
             }
 
-            if (result.init_point) {
-                // Redireciona para o checkout do Mercado Pago
-                window.location.href = result.init_point;
-            } else {
-                throw new Error(result.error || "Erro ao gerar pagamento");
-            }
+            // Para planos pagos, salvamos o cliente e avançamos para o pagamento transparente
+            setClientData(data);
+            setStep("payment");
+
         } catch (error) {
             console.error("Checkout Error:", error);
             alert("Ocorreu um erro ao processar seu pedido. Tente novamente.");
@@ -110,57 +113,88 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                             <X className="w-6 h-6" />
                         </button>
 
-                        <h2 className="text-3xl font-bold mb-2">Quase lá!</h2>
+                        <h2 className="text-3xl font-bold mb-2">
+                            {step === "info" ? "Quase lá!" : "Pagamento"}
+                        </h2>
                         <p className="text-slate-400 mb-8">
-                            Você está adquirindo o plano <span className="text-cyan-400 font-bold">{planName}</span> por <span className="text-white font-bold">R$ {price}</span>.
+                            {step === "info"
+                                ? <>Você está adquirindo o plano <span className="text-cyan-400 font-bold">{planName}</span> por <span className="text-white font-bold">R$ {price}</span>.</>
+                                : <>Conclua o pagamento para ativar sua licença.</>
+                            }
                         </p>
 
-                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-1">Nome Completo</label>
-                                <input
-                                    {...register("name")}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
-                                    placeholder="Ex: João Silva"
-                                />
-                                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
-                            </div>
+                        {step === "info" ? (
+                            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">Nome Completo</label>
+                                    <input
+                                        {...register("name")}
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-sans"
+                                        placeholder="Ex: João Silva"
+                                    />
+                                    {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
-                                <input
-                                    {...register("email")}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
-                                    placeholder="seu@email.com"
-                                />
-                                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
+                                    <input
+                                        {...register("email")}
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-sans"
+                                        placeholder="seu@email.com"
+                                    />
+                                    {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-1">WhatsApp (com DDD)</label>
-                                <input
-                                    {...register("whatsapp")}
-                                    onChange={handlePhoneChange}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-mono"
-                                    placeholder="(LL) 99999-9999"
-                                />
-                                {errors.whatsapp && <p className="text-red-500 text-xs mt-1">{errors.whatsapp.message}</p>}
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">WhatsApp (com DDD)</label>
+                                    <input
+                                        {...register("whatsapp")}
+                                        onChange={handlePhoneChange}
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-mono"
+                                        placeholder="(LL) 99999-9999"
+                                    />
+                                    {errors.whatsapp && <p className="text-red-500 text-xs mt-1">{errors.whatsapp.message}</p>}
+                                </div>
 
-                            <div className="pt-4">
+                                <div className="pt-4">
+                                    <button
+                                        disabled={loading}
+                                        type="submit"
+                                        className="w-full bg-cyan-500 text-slate-950 py-4 rounded-xl font-bold text-lg hover:bg-cyan-400 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="w-6 h-6 animate-spin" />
+                                        ) : (
+                                            "PROSSEGUIR PARA PAGAMENTO"
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="w-full h-full max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                                <TransparentCheckout
+                                    planId={planId}
+                                    planName={planName}
+                                    price={price}
+                                    clientInfo={clientData!}
+                                    onSuccess={() => {
+                                        setStep("success");
+                                        setTimeout(() => {
+                                            window.location.href = "/obrigado?plan=paid";
+                                        }, 1500);
+                                    }}
+                                    onError={(err) => {
+                                        alert("Falha no pagamento: " + (err.details || "Verifique seus dados."));
+                                    }}
+                                />
                                 <button
-                                    disabled={loading}
-                                    type="submit"
-                                    className="w-full bg-cyan-500 text-slate-950 py-4 rounded-xl font-bold text-lg hover:bg-cyan-400 transition-all flex items-center justify-center gap-2"
+                                    onClick={() => setStep("info")}
+                                    className="w-full text-slate-500 text-[10px] uppercase font-bold tracking-widest mt-6 hover:text-white transition-colors"
                                 >
-                                    {loading ? (
-                                        <Loader2 className="w-6 h-6 animate-spin" />
-                                    ) : (
-                                        "PROSSEGUIR PARA PAGAMENTO"
-                                    )}
+                                    &larr; Voltar para Detalhes
                                 </button>
                             </div>
-                        </form>
+                        )}
 
                         <p className="text-center text-slate-500 text-xs mt-6 px-4">
                             Ao prosseguir, você concorda com nossos termos e política de privacidade.

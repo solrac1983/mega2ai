@@ -99,3 +99,35 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.5);
+}
+
+/* Mercado Pago Bricks Customization Overrides */
+#paymentBrick_container {
+  min-height: 450px;
+}
+.mp-bricks-container {
+  padding: 0 !important;
+  background-color: transparent !important;
+}
+.mp-bricks-card {
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+.mp-bricks-theme-dark .mp-bricks-card {
+  background: transparent !important;
+}
