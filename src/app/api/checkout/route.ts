@@ -67,7 +67,7 @@ export async function POST(req: Request) {
                     email: email,
                 },
                 back_urls: {
-                    success: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/obrigado`,
+                    success: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/obrigado?plan=paid`,
                     failure: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/pagamento-falhou`,
                     pending: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/pendente`,
                 },

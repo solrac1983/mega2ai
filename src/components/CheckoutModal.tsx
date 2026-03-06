@@ -66,7 +66,7 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
 
             if (result.free) {
                 // Redireciona direto para obrigado se for grátis
-                window.location.href = "/obrigado";
+                window.location.href = "/obrigado?plan=free";
                 return;
             }
 
