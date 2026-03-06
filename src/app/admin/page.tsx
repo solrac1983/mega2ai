@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Save, Link as LinkIcon, Download, Users, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { Save, Download, Users, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 
 export default function AdminSettings() {
     const [loading, setLoading] = useState(false);
@@ -44,6 +44,13 @@ export default function AdminSettings() {
         }
     };
 
+    const handleLogout = async () => {
+        // Just clear the cookie (simplest way is calling an API or just redirecting if cookie is set to expire)
+        // For simplicity, we can create a logout route or just set document.cookie
+        document.cookie = "admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+        window.location.href = "/login";
+    };
+
     if (fetching) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -63,6 +70,12 @@ export default function AdminSettings() {
                         </h1>
                         <p className="text-slate-500 mt-2 font-mono uppercase text-xs tracking-widest">Painel Administrativo de Links e Arquivos</p>
                     </div>
+                    <button
+                        onClick={handleLogout}
+                        className="text-slate-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
+                    >
+                        Sair do Painel
+                    </button>
                 </header>
 
                 <div className="grid grid-cols-1 gap-8">
@@ -102,8 +115,9 @@ export default function AdminSettings() {
                             <div className="space-y-4">
                                 <h3 className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">Grupo de Clientes (Pós-Venda)</h3>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome do Grupo</label>
+                                    <label htmlFor="customerGroupName" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome do Grupo</label>
                                     <input
+                                        id="customerGroupName"
                                         type="text"
                                         value={settings.customerGroupName}
                                         onChange={(e) => setSettings({ ...settings, customerGroupName: e.target.value })}
@@ -111,8 +125,9 @@ export default function AdminSettings() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
+                                    <label htmlFor="customerGroupUrl" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
                                     <input
+                                        id="customerGroupUrl"
                                         type="text"
                                         value={settings.customerGroupUrl}
                                         onChange={(e) => setSettings({ ...settings, customerGroupUrl: e.target.value })}
@@ -124,8 +139,9 @@ export default function AdminSettings() {
                             <div className="space-y-4">
                                 <h3 className="text-xs font-black text-yellow-500 uppercase tracking-widest mb-4">Comunidade (Possíveis Clientes)</h3>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome da Comunidade</label>
+                                    <label htmlFor="communityGroupName" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Nome da Comunidade</label>
                                     <input
+                                        id="communityGroupName"
                                         type="text"
                                         value={settings.communityGroupName}
                                         onChange={(e) => setSettings({ ...settings, communityGroupName: e.target.value })}
@@ -133,8 +149,9 @@ export default function AdminSettings() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
+                                    <label htmlFor="communityGroupUrl" className="block text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Link (Convite)</label>
                                     <input
+                                        id="communityGroupUrl"
                                         type="text"
                                         value={settings.communityGroupUrl}
                                         onChange={(e) => setSettings({ ...settings, communityGroupUrl: e.target.value })}
