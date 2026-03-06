@@ -18,7 +18,12 @@ import {
     FileCode,
     LogOut,
     Search,
-    RefreshCw
+    RefreshCw,
+    Upload,
+    Bell,
+    Send,
+    X,
+    MessageSquare
 } from "lucide-react";
 
 type Tab = "dashboard" | "clients" | "settings";
@@ -67,6 +72,9 @@ export default function AdminPanel() {
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
     const [message, setMessage] = useState("");
+    const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+    const [selectedClients, setSelectedClients] = useState<string[]>([]);
+    const [broadcastMessage, setBroadcastMessage] = useState("");
 
     // Data states
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -118,6 +126,32 @@ export default function AdminPanel() {
                 setMessage("Configurações atualizadas!");
                 setTimeout(() => setMessage(""), 3000);
                 fetchData();
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleBroadcast = async () => {
+        if (!broadcastMessage || selectedClients.length === 0) return;
+        setLoading(true);
+        try {
+            const res = await fetch("/api/admin/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    clientIds: selectedClients,
+                    message: broadcastMessage
+                }),
+            });
+            if (res.ok) {
+                setMessage("Notificações enviadas!");
+                setBroadcastMessage("");
+                setSelectedClients([]);
+                setIsNotifyModalOpen(false);
+                setTimeout(() => setMessage(""), 3000);
             }
         } catch (error) {
             console.error(error);
@@ -210,7 +244,14 @@ export default function AdminPanel() {
                         transition={{ duration: 0.2 }}
                     >
                         {activeTab === "dashboard" && dashboardData && <DashboardView data={dashboardData} />}
-                        {activeTab === "clients" && <ClientsView clients={clients} />}
+                        {activeTab === "clients" && (
+                            <ClientsView
+                                clients={clients}
+                                selectedClients={selectedClients}
+                                setSelectedClients={setSelectedClients}
+                                onNotify={() => setIsNotifyModalOpen(true)}
+                            />
+                        )}
                         {activeTab === "settings" && (
                             <SettingsView
                                 settings={settings}
@@ -223,6 +264,58 @@ export default function AdminPanel() {
                     </motion.div>
                 </AnimatePresence>
             </div>
+
+            {/* Notification Modal */}
+            <AnimatePresence>
+                {isNotifyModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsNotifyModalOpen(false)}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-3xl p-8 relative z-10 shadow-2xl"
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold flex items-center gap-3">
+                                    <Bell className="text-cyan-500" />
+                                    Notificar Clientes ({selectedClients.length})
+                                </h3>
+                                <button onClick={() => setIsNotifyModalOpen(false)} className="text-slate-500 hover:text-white">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Mensagem do WhatsApp</label>
+                                    <textarea
+                                        value={broadcastMessage}
+                                        onChange={(e) => setBroadcastMessage(e.target.value)}
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-sm h-40 outline-none focus:border-cyan-500/50 transition-all resize-none"
+                                        placeholder="Digite a mensagem que será enviada para os clientes selecionados..."
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleBroadcast}
+                                    disabled={loading || !broadcastMessage}
+                                    className="w-full bg-cyan-500 text-slate-950 py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-cyan-400 transition-all disabled:opacity-50"
+                                >
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                                    Enviar Notificação
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </main>
     );
 }
@@ -320,8 +413,29 @@ function DashboardView({ data }: { data: DashboardData }) {
     );
 }
 
-function ClientsView({ clients }: { clients: Client[] }) {
+function ClientsView({ clients, selectedClients, setSelectedClients, onNotify }: {
+    clients: Client[],
+    selectedClients: string[],
+    setSelectedClients: (ids: string[]) => void,
+    onNotify: () => void
+}) {
     const [search, setSearch] = useState("");
+
+    const toggleClient = (id: string) => {
+        if (selectedClients.includes(id)) {
+            setSelectedClients(selectedClients.filter(i => i !== id));
+        } else {
+            setSelectedClients([...selectedClients, id]);
+        }
+    };
+
+    const toggleAll = () => {
+        if (selectedClients.length === filtered.length) {
+            setSelectedClients([]);
+        } else {
+            setSelectedClients(filtered.map(c => c.id));
+        }
+    };
 
     const filtered = clients.filter(c =>
         c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -331,21 +445,43 @@ function ClientsView({ clients }: { clients: Client[] }) {
 
     return (
         <div className="space-y-6">
-            <div className="relative max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                <input
-                    type="text"
-                    placeholder="Buscar por nome, email ou WhatsApp..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl pl-12 pr-6 py-4 outline-none focus:border-cyan-500/50 transition-all font-medium"
-                />
+            <div className="flex justify-between items-center bg-slate-900/40 p-4 rounded-3xl border border-white/5">
+                <div className="relative max-w-md flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Buscar por nome, email ou WhatsApp..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full bg-transparent border-none rounded-2xl pl-12 pr-6 py-3 outline-none transition-all font-medium text-sm"
+                    />
+                </div>
+
+                {selectedClients.length > 0 && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={onNotify}
+                        className="bg-cyan-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg"
+                    >
+                        <MessageSquare size={16} />
+                        Notificar Selecionados ({selectedClients.length})
+                    </motion.button>
+                )}
             </div>
 
             <div className="glass-card rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden">
                 <table className="w-full text-left">
                     <thead>
                         <tr className="bg-black/20 text-slate-500 text-[10px] uppercase font-black tracking-widest border-b border-white/5">
+                            <th className="px-8 py-6 w-10">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedClients.length === filtered.length && filtered.length > 0}
+                                    onChange={toggleAll}
+                                    className="w-4 h-4 bg-slate-800 border-white/10 rounded"
+                                />
+                            </th>
                             <th className="px-8 py-6">Cliente</th>
                             <th className="px-8 py-6">WhatsApp</th>
                             <th className="px-8 py-6">Status Pagamento</th>
@@ -355,8 +491,21 @@ function ClientsView({ clients }: { clients: Client[] }) {
                     <tbody className="divide-y divide-white/5">
                         {filtered.map((client) => {
                             const lastPayment = client.payments[0];
+                            const isSelected = selectedClients.includes(client.id);
                             return (
-                                <tr key={client.id} className="hover:bg-white/5 transition-colors group">
+                                <tr
+                                    key={client.id}
+                                    className={`hover:bg-white/5 transition-colors group cursor-pointer ${isSelected ? "bg-cyan-500/5" : ""}`}
+                                    onClick={() => toggleClient(client.id)}
+                                >
+                                    <td className="px-8 py-6">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => { }} // Handle by TR click
+                                            className="w-4 h-4 bg-slate-800 border-white/10 rounded"
+                                        />
+                                    </td>
                                     <td className="px-8 py-6">
                                         <p className="font-bold text-sm group-hover:text-cyan-400 transition-colors">{client.name}</p>
                                         <p className="text-slate-500 text-xs">{client.email}</p>
@@ -402,14 +551,48 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                     <div className="absolute top-0 right-0 p-8 opacity-5">
                         <FileCode size={120} />
                     </div>
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="p-3 bg-emerald-500/20 rounded-2xl">
-                            <Download className="text-emerald-500 w-6 h-6" />
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-emerald-500/20 rounded-2xl">
+                                <Download className="text-emerald-500 w-6 h-6" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold font-display uppercase tracking-tight">Arquivo da Extensão</h2>
+                                <p className="text-slate-500 text-xs mt-1">Este arquivo é entregue automaticamente via WhatsApp</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-xl font-bold font-display uppercase tracking-tight">Arquivo da Extensão</h2>
-                            <p className="text-slate-500 text-xs mt-1">Este arquivo é entregue automaticamente via WhatsApp</p>
-                        </div>
+
+                        <label className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer hover:bg-white/10 transition-all">
+                            <Upload size={16} className="text-emerald-500" />
+                            Fazer Upload
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept=".zip"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+
+                                    const formData = new FormData();
+                                    formData.append("file", file);
+
+                                    try {
+                                        const res = await fetch("/api/admin/upload", {
+                                            method: "POST",
+                                            body: formData
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            setSettings(s => ({ ...s, extensionUrl: data.url }));
+                                            alert("Extensão atualizada com sucesso!");
+                                        }
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert("Erro ao subir arquivo");
+                                    }
+                                }}
+                            />
+                        </label>
                     </div>
 
                     <div className="space-y-6 relative z-10">
@@ -426,7 +609,7 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
 
                         <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
                             <p className="text-emerald-400/80 text-[11px] leading-relaxed">
-                                💡 <strong>Dica de Atualização:</strong> Quando você lançar uma versão nova, suba o arquivo no seu hosting e substitua o link acima. O sistema enviará automaticamente o novo arquivo nos próximos checkouts.
+                                💡 <strong>Dica de Atualização:</strong> Você pode clicar no botão <b>Fazer Upload</b> acima para subir o novo arquivo .ZIP diretamente para o servidor. O sistema atualizará o link automaticamente.
                             </p>
                         </div>
                     </div>
