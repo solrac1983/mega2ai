@@ -36,9 +36,13 @@ export async function POST(req: Request) {
         const host = req.headers.get("host");
         const newUrl = `${protocol}://${host}/download/${fileName}`;
 
-        await prisma.settings.update({
+        await prisma.settings.upsert({
             where: { id: "global" },
-            data: { extensionUrl: newUrl }
+            update: { extensionUrl: newUrl },
+            create: {
+                id: "global",
+                extensionUrl: newUrl
+            }
         });
 
         return NextResponse.json({
