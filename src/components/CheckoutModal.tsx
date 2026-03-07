@@ -195,9 +195,6 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                                             window.location.href = "/obrigado?plan=paid";
                                         }, 1500);
                                     }}
-                                    onError={(err) => {
-                                        alert("Falha no pagamento: " + (err.details || "Verifique seus dados."));
-                                    }}
                                 />
                                 <button
                                     onClick={() => setStep("info")}
