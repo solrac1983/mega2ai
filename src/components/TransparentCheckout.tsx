@@ -55,9 +55,7 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                     },
                     paymentMethods: {
                         maxInstallments: 12,
-                        types: {
-                            excluded: ['ticket'] // Opcionalmente remover boleto se o usuário preferir pix/cartão
-                        }
+                        // Não excluímos nada para garantir que PIX e Cartão apareçam
                     }
                 },
                 callbacks: {
@@ -101,7 +99,7 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
             };
 
             if (brickContainerRef.current) {
-                brickContainerRef.current.innerHTML = ''; // Clear previous
+                brickContainerRef.current.innerHTML = ''; // Limpa anterior
                 await builder.create('payment', 'paymentBrick_container', settings);
             }
         };
