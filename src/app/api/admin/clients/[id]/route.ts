@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 
-const prisma = new PrismaClient();
-
-// Atualizar cliente
 export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -24,7 +21,6 @@ export async function PATCH(
     }
 }
 
-// Excluir cliente
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -32,10 +28,6 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        // Antes de excluir o cliente, precisamos lidar com as relações (pagamentos e licenças)
-        // Se preferir manter os registros, use soft delete. Aqui faremos a exclusão em cascata manual se necessário
-        // ou deixaremos o Prisma disparar erro se houver FK. 
-        // Para simplificar e garantir a limpeza:
         await prisma.$transaction([
             prisma.payment.deleteMany({ where: { clientId: id } }),
             prisma.license.deleteMany({ where: { clientId: id } }),

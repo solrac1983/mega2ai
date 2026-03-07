@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
     try {
@@ -36,7 +34,7 @@ export async function POST(req: Request) {
         const host = req.headers.get("host");
         const newUrl = `${protocol}://${host}/download/${fileName}`;
 
-        await prisma.settings.upsert({
+        await (prisma as any).settings.upsert({
             where: { id: "global" },
             update: { extensionUrl: newUrl },
             create: {
@@ -52,6 +50,6 @@ export async function POST(req: Request) {
         });
     } catch (error) {
         console.error("Upload Error:", error);
-        return NextResponse.json({ error: "Erro ao processar upload" }, { status: 500 });
+        return NextResponse.json({ error: "Erro ao processar upload. Verifique as permissões de escrita." }, { status: 500 });
     }
 }

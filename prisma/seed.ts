@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import "dotenv/config";
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -20,26 +20,22 @@ async function main() {
         });
     }
 
-    // Inicializar configurações globais com os links reais fornecidos pelo usuário
-    try {
-        await (prisma as any).settings.upsert({
-            where: { id: "global" },
-            update: {
-                customerGroupUrl: "https://chat.whatsapp.com/LF7CWKZf5Dx2VGdsTw0aft",
-                communityGroupUrl: "https://chat.whatsapp.com/JhkL3WD8Yn9LXpO8cglXwY",
-            },
-            create: {
-                id: "global",
-                extensionUrl: "https://mega2ai.com/download/mega_2ai_v2.zip",
-                customerGroupUrl: "https://chat.whatsapp.com/LF7CWKZf5Dx2VGdsTw0aft",
-                communityGroupUrl: "https://chat.whatsapp.com/JhkL3WD8Yn9LXpO8cglXwY",
-            },
-        });
-    } catch (err) {
-        console.log("Aviso: Modelo Settings pode não estar disponível no seed ainda.");
-    }
+    // Inicializar Admin inicial
+    const adminUser = process.env.ADMIN_USER || "admin";
+    const adminPass = process.env.ADMIN_PASS || "mega2ai@2026";
+    const hashedPass = await bcrypt.hash(adminPass, 10);
 
-    console.log("Seed concluído: Planos e links iniciais configurados.");
+    await (prisma as any).admin.upsert({
+        where: { username: adminUser },
+        update: {},
+        create: {
+            username: adminUser,
+            password: hashedPass,
+            name: "Administrador"
+        }
+    });
+
+    console.log("Seed concluído: Planos, links e admin inicial configurados.");
 }
 
 main()

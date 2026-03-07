@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 import { sendWhatsapp } from "@/lib/evolution";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
     try {
@@ -19,18 +17,23 @@ export async function POST(req: Request) {
             select: { whatsapp: true }
         });
 
+        if (clients.length === 0) {
+            return NextResponse.json({ error: "Nenhum cliente encontrado" }, { status: 404 });
+        }
+
         // Loop de envio (idealmente usar uma fila/queue em produção, mas para poucos clientes o loop resolve)
         const results = await Promise.allSettled(
             clients.map(client => sendWhatsapp(client.whatsapp, message))
         );
 
-        const successCount = results.filter(r => r.status === "fulfilled").length;
-        const failCount = results.filter(r => r.status === "rejected").length;
+        const successCount = results.filter(r => (r as any).status === "fulfilled" && (r as any).value === true).length;
+        const totalSent = results.length;
+        const failCount = totalSent - successCount;
 
         return NextResponse.json({
             success: true,
             message: `Envio concluído: ${successCount} sucessos, ${failCount} falhas.`,
-            stats: { successCount, failCount }
+            stats: { successCount, failCount, totalSent }
         });
     } catch (error) {
         console.error("Notify Error:", error);

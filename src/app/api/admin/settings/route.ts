@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function GET() {
     try {
-        const settings = await prisma.settings.upsert({
+        // Usamos (prisma as any) para evitar erros de tipagem no client antes do generate
+        const settings = await (prisma as any).settings.upsert({
             where: { id: "global" },
             update: {},
             create: {
@@ -28,9 +27,18 @@ export async function GET() {
 export async function PATCH(req: Request) {
     try {
         const body = await req.json();
-        const settings = await prisma.settings.update({
+        const settings = await (prisma as any).settings.upsert({
             where: { id: "global" },
-            data: {
+            update: {
+                extensionUrl: body.extensionUrl,
+                customerGroupUrl: body.customerGroupUrl,
+                communityGroupUrl: body.communityGroupUrl,
+                customerGroupName: body.customerGroupName,
+                communityGroupName: body.communityGroupName,
+                videoUrl: body.videoUrl,
+            },
+            create: {
+                id: "global",
                 extensionUrl: body.extensionUrl,
                 customerGroupUrl: body.customerGroupUrl,
                 communityGroupUrl: body.communityGroupUrl,

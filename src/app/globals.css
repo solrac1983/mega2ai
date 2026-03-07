@@ -30,6 +30,7 @@ body {
 /* Brutalist Glass */
 .glass-brutalist {
   background: rgba(15, 23, 42, 0.7);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border: 2px solid rgba(34, 211, 238, 0.2);
   box-shadow: 10px 10px 0px rgba(34, 211, 238, 0.1);
@@ -104,13 +105,16 @@ body {
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(34, 211, 238, 0.2);
   border-radius: 10px;
 }
+
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   background: rgba(34, 211, 238, 0.5);
 }
@@ -119,15 +123,18 @@ body {
 #paymentBrick_container {
   min-height: 450px;
 }
+
 .mp-bricks-container {
   padding: 0 !important;
   background-color: transparent !important;
 }
+
 .mp-bricks-card {
   background-color: transparent !important;
   border-color: rgba(255, 255, 255, 0.05) !important;
   box-shadow: none !important;
 }
+
 .mp-bricks-theme-dark .mp-bricks-card {
   background: transparent !important;
 }

@@ -6,6 +6,11 @@ export function middleware(request: NextRequest) {
 
     // Se estiver tentando acessar o admin ou a API do admin
     if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+        // Exceção: Permitir buscar configurações publicamente (Landing Page)
+        if (pathname === "/api/admin/settings" && request.method === "GET") {
+            return NextResponse.next();
+        }
+
         const session = request.cookies.get("admin_session");
 
         if (!session) {

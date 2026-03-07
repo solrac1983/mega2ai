@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 export async function GET() {
     try {
@@ -10,7 +8,8 @@ export async function GET() {
             approvedPayments,
             freeTrials,
             recentClients,
-            salesByPlan
+            salesByPlan,
+            totalAdmins
         ] = await Promise.all([
             prisma.client.count(),
             prisma.payment.findMany({
@@ -36,7 +35,8 @@ export async function GET() {
                 where: { status: "APPROVED" },
                 _count: { id: true },
                 _sum: { amount: true }
-            })
+            }),
+            (prisma as any).admin.count()
         ]);
 
         const totalRevenue = approvedPayments.reduce((acc, curr) => acc + curr.amount, 0);
@@ -49,6 +49,7 @@ export async function GET() {
                 approvedSales: paidConversions,
                 freeTrials,
                 totalRevenue,
+                totalAdmins,
                 conversionRate: conversionRate.toFixed(2),
             },
             recentClients,

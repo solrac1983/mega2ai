@@ -25,10 +25,11 @@ import {
     X,
     MessageSquare,
     Edit,
-    Trash2
+    Trash2,
+    Lock
 } from "lucide-react";
 
-type Tab = "dashboard" | "clients" | "settings";
+type Tab = "dashboard" | "clients" | "settings" | "team";
 
 interface DashboardData {
     stats: {
@@ -36,6 +37,7 @@ interface DashboardData {
         approvedSales: number;
         freeTrials: number;
         totalRevenue: number;
+        totalAdmins: number;
         conversionRate: string;
     };
     recentClients: {
@@ -50,6 +52,13 @@ interface DashboardData {
         _count: { id: number };
         _sum: { amount: number };
     }[];
+}
+
+interface AdminUser {
+    id: string;
+    username: string;
+    name: string | null;
+    createdAt: string;
 }
 
 interface Client {
@@ -81,10 +90,13 @@ export default function AdminPanel() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [clientToDelete, setClientToDelete] = useState<string | null>(null);
     const [broadcastMessage, setBroadcastMessage] = useState("");
+    const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
+    const [newAdmin, setNewAdmin] = useState({ username: "", password: "", name: "" });
 
     // Data states
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
+    const [admins, setAdmins] = useState<AdminUser[]>([]);
     const [settings, setSettings] = useState<Settings>({
         extensionUrl: "",
         customerGroupName: "",
@@ -97,19 +109,22 @@ export default function AdminPanel() {
     const fetchData = async () => {
         setFetching(true);
         try {
-            const [dashRes, clientsRes, settingsRes] = await Promise.all([
+            const [dashRes, clientsRes, settingsRes, adminsRes] = await Promise.all([
                 fetch("/api/admin/dashboard"),
                 fetch("/api/admin/clients"),
-                fetch("/api/admin/settings")
+                fetch("/api/admin/settings"),
+                fetch("/api/admin/users")
             ]);
 
             const dash: DashboardData = await dashRes.json();
             const cls: Client[] = await clientsRes.json();
             const sett: Settings = await settingsRes.json();
+            const adms: AdminUser[] = await adminsRes.json();
 
             setDashboardData(dash);
             setClients(cls);
             setSettings(sett);
+            setAdmins(adms);
         } catch (error) {
             console.error(error);
         } finally {
@@ -133,6 +148,9 @@ export default function AdminPanel() {
                 setMessage("Configurações atualizadas!");
                 setTimeout(() => setMessage(""), 3000);
                 fetchData();
+            } else {
+                const err = await res.json();
+                alert(err.error || "Erro ao salvar configurações");
             }
         } catch (error) {
             console.error(error);
@@ -211,6 +229,54 @@ export default function AdminPanel() {
         }
     };
 
+    const handleCreateAdmin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const res = await fetch("/api/admin/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newAdmin)
+            });
+            if (res.ok) {
+                setMessage("Administrador criado!");
+                setIsAddAdminModalOpen(false);
+                setNewAdmin({ username: "", password: "", name: "" });
+                fetchData();
+                setTimeout(() => setMessage(""), 3000);
+            } else {
+                const err = await res.json();
+                alert(err.error || "Erro ao criar admin");
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteAdmin = async (id: string) => {
+        if (!confirm("Tem certeza que deseja remover este administrador?")) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/users/${id}`, {
+                method: "DELETE"
+            });
+            if (res.ok) {
+                setMessage("Administrador removido!");
+                fetchData();
+                setTimeout(() => setMessage(""), 3000);
+            } else {
+                const err = await res.json();
+                alert(err.error || "Erro ao excluir admin");
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleLogout = () => {
         document.cookie = "admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
         window.location.href = "/login";
@@ -252,6 +318,12 @@ export default function AdminPanel() {
                         icon={<SettingsIcon size={20} />}
                         label="Configurações"
                     />
+                    <SidebarLink
+                        active={activeTab === "team"}
+                        onClick={() => setActiveTab("team")}
+                        icon={<Lock size={20} />}
+                        label="Equipe"
+                    />
                 </nav>
 
                 <button
@@ -271,6 +343,7 @@ export default function AdminPanel() {
                             {activeTab === "dashboard" && "Dashboard Geral"}
                             {activeTab === "clients" && "Gestão de Leads"}
                             {activeTab === "settings" && "Configurações Globais"}
+                            {activeTab === "team" && "Equipe Administrativa"}
                         </h1>
                         <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1">
                             {activeTab === "dashboard" ? "Acompanhamento em tempo real" : "Gerenciamento da plataforma"}
@@ -317,6 +390,13 @@ export default function AdminPanel() {
                                 message={message}
                             />
                         )}
+                        {activeTab === "team" && (
+                            <TeamView
+                                admins={admins}
+                                onAdd={() => setIsAddAdminModalOpen(true)}
+                                onDelete={handleDeleteAdmin}
+                            />
+                        )}
                     </motion.div>
                 </AnimatePresence>
             </div>
@@ -337,7 +417,7 @@ export default function AdminPanel() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             className="glass-card w-full max-w-xl p-8 rounded-3xl relative z-10"
                         >
-                            <button onClick={() => setIsNotifyModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+                            <button onClick={() => setIsNotifyModalOpen(false)} title="Fechar" className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
                                 <X className="w-6 h-6" />
                             </button>
                             <div className="flex items-center gap-4 mb-8 text-emerald-500">
@@ -381,30 +461,33 @@ export default function AdminPanel() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             className="glass-card w-full max-w-md p-8 rounded-3xl relative z-10"
                         >
-                            <button onClick={() => setEditingClient(null)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+                            <button onClick={() => setEditingClient(null)} title="Fechar" className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
                                 <X className="w-6 h-6" />
                             </button>
                             <h2 className="text-2xl font-black uppercase tracking-tighter mb-8">Editar Cliente</h2>
                             <form onSubmit={handleUpdateClient} className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Nome</label>
+                                    <label htmlFor="edit_name" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Nome</label>
                                     <input
+                                        id="edit_name"
                                         value={editingClient.name}
                                         onChange={e => setEditingClient({ ...editingClient, name: e.target.value })}
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Email</label>
+                                    <label htmlFor="edit_email" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Email</label>
                                     <input
+                                        id="edit_email"
                                         value={editingClient.email}
                                         onChange={e => setEditingClient({ ...editingClient, email: e.target.value })}
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">WhatsApp</label>
+                                    <label htmlFor="edit_whatsapp" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">WhatsApp</label>
                                     <input
+                                        id="edit_whatsapp"
                                         value={editingClient.whatsapp}
                                         onChange={e => setEditingClient({ ...editingClient, whatsapp: e.target.value })}
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
@@ -455,6 +538,68 @@ export default function AdminPanel() {
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Excluir"}
                                 </button>
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Modal Cadastrar Admin */}
+                {isAddAdminModalOpen && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            onClick={() => setIsAddAdminModalOpen(false)}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="glass-card w-full max-w-md p-8 rounded-3xl relative z-10"
+                        >
+                            <button onClick={() => setIsAddAdminModalOpen(false)} title="Fechar" className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-8">Novo Administrador</h2>
+                            <form onSubmit={handleCreateAdmin} className="space-y-4">
+                                <div>
+                                    <label htmlFor="new_admin_name" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Nome Completo</label>
+                                    <input
+                                        id="new_admin_name"
+                                        placeholder="Ex: Carlos Silva"
+                                        value={newAdmin.name}
+                                        onChange={e => setNewAdmin({ ...newAdmin, name: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="new_admin_user" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Usuário (Login)</label>
+                                    <input
+                                        id="new_admin_user"
+                                        placeholder="Ex: carlossilva"
+                                        value={newAdmin.username}
+                                        onChange={e => setNewAdmin({ ...newAdmin, username: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="new_admin_pass" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Senha Provisória</label>
+                                    <input
+                                        id="new_admin_pass"
+                                        type="password"
+                                        placeholder="Mínimo 6 caracteres"
+                                        value={newAdmin.password}
+                                        onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading || !newAdmin.username || !newAdmin.password}
+                                    className="w-full bg-cyan-500 text-slate-950 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-cyan-400 transition-all disabled:opacity-50 mt-4"
+                                >
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Criar Acesso"}
+                                </button>
+                            </form>
                         </motion.div>
                     </div>
                 )}
@@ -509,9 +654,14 @@ function DashboardView({ data }: { data: DashboardData }) {
                     label="Conversão (Vendas)"
                     value={`${data.stats.conversionRate}%`}
                 />
+                <StatCard
+                    icon={<Lock className="text-pink-500" />}
+                    label="Administradores"
+                    value={data.stats.totalAdmins}
+                />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <History size={20} className="text-cyan-500" />
@@ -742,10 +892,12 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                             )}
                             {localUploading ? "Enviando..." : "Fazer Upload"}
                             <input
+                                id="upload-zip"
                                 type="file"
                                 className="sr-only"
                                 accept=".zip"
                                 disabled={localUploading}
+                                title="Selecionar arquivo .zip da extensão"
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
@@ -780,13 +932,15 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
 
                     <div className="space-y-6 relative z-10">
                         <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">URL Direta para Versão Atual (.zip)</label>
+                            <label htmlFor="extension-url" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">URL Direta para Versão Atual (.zip)</label>
                             <input
+                                id="extension-url"
                                 type="text"
                                 value={settings.extensionUrl}
                                 onChange={(e) => setSettings({ ...settings, extensionUrl: e.target.value })}
                                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-emerald-400 font-mono text-sm focus:border-emerald-500/50 outline-none transition-all"
                                 placeholder="https://mega2ai.com/download/version.zip"
+                                title="URL da Extensão"
                             />
                         </div>
 
@@ -820,6 +974,7 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                 onChange={(e) => setSettings({ ...settings, videoUrl: e.target.value })}
                                 className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-purple-400 font-mono text-sm focus:border-purple-500/50 outline-none transition-all"
                                 placeholder="https://youtube.com/watch?v=..."
+                                title="URL do vídeo tutorial"
                             />
                         </div>
                     </div>
@@ -848,6 +1003,8 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                     value={settings.customerGroupName}
                                     onChange={(e) => setSettings({ ...settings, customerGroupName: e.target.value })}
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-cyan-500/50 outline-none transition-all"
+                                    placeholder="Ex: Grupo VIP"
+                                    title="Nome do grupo VIP"
                                 />
                             </div>
                             <div>
@@ -858,6 +1015,8 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                     value={settings.customerGroupUrl}
                                     onChange={(e) => setSettings({ ...settings, customerGroupUrl: e.target.value })}
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-cyan-400 font-mono text-[10px] focus:border-cyan-500/50 outline-none transition-all"
+                                    placeholder="https://chat.whatsapp.com/..."
+                                    title="Link do grupo VIP"
                                 />
                             </div>
                         </div>
@@ -872,6 +1031,8 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                     value={settings.communityGroupName}
                                     onChange={(e) => setSettings({ ...settings, communityGroupName: e.target.value })}
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-white text-sm focus:border-yellow-500/50 outline-none transition-all"
+                                    placeholder="Ex: Comunidade Alpha"
+                                    title="Nome da comunidade"
                                 />
                             </div>
                             <div>
@@ -882,6 +1043,8 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                                     value={settings.communityGroupUrl}
                                     onChange={(e) => setSettings({ ...settings, communityGroupUrl: e.target.value })}
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-5 py-4 text-yellow-400 font-mono text-[10px] focus:border-yellow-500/50 outline-none transition-all"
+                                    placeholder="https://chat.whatsapp.com/..."
+                                    title="Link da comunidade"
                                 />
                             </div>
                         </div>
@@ -926,6 +1089,53 @@ function SettingsView({ settings, setSettings, onSave, loading, message }: {
                         Abrir chamado técnico &rarr;
                     </a>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function TeamView({ admins, onAdd, onDelete }: { admins: AdminUser[], onAdd: () => void, onDelete: (id: string) => void }) {
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center bg-slate-900/40 p-6 rounded-3xl border border-white/5">
+                <div>
+                    <h2 className="text-xl font-bold font-display uppercase tracking-tight">Equipe Administrativa</h2>
+                    <p className="text-slate-500 text-xs mt-1">Gerencie quem tem acesso a este painel</p>
+                </div>
+                <button
+                    onClick={onAdd}
+                    className="bg-cyan-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg"
+                >
+                    <UserPlus size={16} />
+                    Novo Usuário
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {admins.map((admin) => (
+                    <div key={admin.id} className="glass-card p-6 rounded-3xl border border-white/5 bg-slate-900/40 relative group">
+                        <div className="flex items-start justify-between mb-4">
+                            <div className="p-3 bg-cyan-500/10 rounded-2xl">
+                                <ShieldCheck className="text-cyan-500 w-6 h-6" />
+                            </div>
+                            <button
+                                onClick={() => onDelete(admin.id)}
+                                title="Excluir Administrador"
+                                className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                        <div>
+                            <p className="font-bold text-lg">{admin.name || "Sem Nome"}</p>
+                            <p className="text-slate-500 text-sm font-mono mt-1">@{admin.username}</p>
+                        </div>
+                        <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Membro desde</span>
+                            <span className="text-[10px] font-mono text-slate-400">{new Date(admin.createdAt).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

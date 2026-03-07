@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,6 +29,10 @@ export default function RootLayout({
         className={`${inter.variable} ${outfit.variable} antialiased`}
       >
         {children}
+        <Script
+          src="https://sdk.mercadopago.com/js/v2"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
