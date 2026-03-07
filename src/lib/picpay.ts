@@ -20,15 +20,16 @@ export async function getPicPayToken() {
         throw new Error("PicPay credentials missing in .env");
     }
 
+    // Basic Auth para obter o token
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('client_id', clientId);
-    params.append('client_secret', clientSecret);
-    params.append('scope', 'payments');
 
     const response = await fetch('https://checkout-api.picpay.com/oauth2/token', {
         method: 'POST',
         headers: {
+            'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded'
         },
         body: params
@@ -38,7 +39,7 @@ export async function getPicPayToken() {
 
     if (!response.ok) {
         console.error("❌ PicPay Auth Error:", data);
-        throw new Error(data.error_description || "Failed to get PicPay token");
+        throw new Error(data.message || data.error_description || "Failed to get PicPay token");
     }
 
     return data.access_token;
