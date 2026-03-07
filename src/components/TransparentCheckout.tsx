@@ -1,14 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, RefreshCw, Check, Loader2, Copy, ShieldCheck } from "lucide-react";
-
-declare global {
-    interface Window {
-        MercadoPago: any;
-    }
-}
+import { Check, Loader2, Copy, AlertTriangle, ExternalLink, QrCode } from "lucide-react";
 
 interface Props {
     planId: string;
@@ -18,154 +12,56 @@ interface Props {
         name: string;
         email: string;
         whatsapp: string;
+        document: string;
     };
     onSuccess: () => void;
     onError: (error: any) => void;
 }
 
 export default function TransparentCheckout({ planId, planName, price, clientInfo, onSuccess, onError }: Props) {
-    const [status, setStatus] = useState<"loading" | "ready" | "error" | "extension" | "pix_success">("loading");
+    const [status, setStatus] = useState<"loading" | "pix_ready" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState<string>("");
-    const [pixData, setPixData] = useState<{ qr_code: string; qr_code_base64: string } | null>(null);
+    const [pixData, setPixData] = useState<{ qr_code: string; qr_code_base64: string; payment_url: string } | null>(null);
     const [copied, setCopied] = useState(false);
-    const hasBeenInitialized = useRef(false);
-    const retryCount = useRef(0);
+    const hasCalledAPI = useRef(false);
 
-    const initMP = useCallback(async () => {
-        if (!window.MercadoPago || hasBeenInitialized.current) return;
-
-        const container = document.getElementById('paymentBrick_container');
-        if (!container) return;
-
-        hasBeenInitialized.current = true;
-        const PUBLIC_KEY = "APP_USR-5d74603f-efaf-4ad2-b926-8306e48963bd";
+    const generatePayment = useCallback(async () => {
+        if (hasCalledAPI.current) return;
+        hasCalledAPI.current = true;
 
         try {
-            const mp = new window.MercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
-            const bricksBuilder = mp.bricks();
+            const res = await fetch("/api/payments/process", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    planId,
+                    planName,
+                    price,
+                    clientInfo
+                })
+            });
 
-            const settings = {
-                initialization: {
-                    amount: Number(price.replace(',', '.')),
-                    payer: {
-                        email: clientInfo.email,
-                        firstName: clientInfo.name.split(" ")[0],
-                        lastName: clientInfo.name.split(" ").slice(1).join(" ") || "Cliente"
-                    },
-                },
-                customization: {
-                    visual: {
-                        style: {
-                            theme: 'dark',
-                        }
-                    },
-                    paymentMethods: {
-                        maxInstallments: 12,
-                        bankTransfer: ["all"],
-                        creditCard: "all",
-                        debitCard: "all",
-                    }
-                },
-                callbacks: {
-                    onReady: () => {
-                        console.log("✅ Checkout Pronto.");
-                        setStatus("ready");
-                    },
-                    onSubmit: async (formData: any) => {
-                        console.log("📤 Processando pagamento:", formData.payment_method_id);
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.details || result.error || "Erro no processamento");
 
-                        // Fallback de segurança para transaction_amount caso venha nulo
-                        const payload = {
-                            formData: {
-                                ...formData,
-                                transaction_amount: formData.transaction_amount || Number(price.replace(',', '.'))
-                            },
-                            planId,
-                            planName,
-                            price,
-                            clientInfo
-                        };
+            setPixData({
+                qr_code: result.qr_code || "",
+                qr_code_base64: result.qr_code_base64 || "",
+                payment_url: result.payment_url || ""
+            });
+            setStatus("pix_ready");
 
-                        try {
-                            const res = await fetch("/api/payments/process", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(payload)
-                            });
-
-                            const result = await res.json();
-                            if (!res.ok) throw new Error(result.details || "Erro no processamento");
-
-                            if (formData.payment_method_id === "pix" && (result.qr_code || result.qr_code_base64)) {
-                                console.log("✨ Pix Gerado com sucesso!");
-                                setPixData({
-                                    qr_code: result.qr_code || "",
-                                    qr_code_base64: result.qr_code_base64 || ""
-                                });
-                                setStatus("pix_success");
-                            } else if (result.status === "approved" || result.status === "pending") {
-                                onSuccess();
-                            } else {
-                                onError(result);
-                            }
-                        } catch (err: any) {
-                            console.error("❌ Erro Submit:", err);
-                            onError(err);
-                        }
-                    },
-                    onError: (error: any) => {
-                        console.error("❌ Erro MP:", error);
-                        const errS = JSON.stringify(error).toLowerCase();
-                        if (errS.includes("site_id") || errS.includes("404") || errS.includes("public_key")) {
-                            setStatus("extension");
-                        } else {
-                            setStatus("error");
-                            setErrorMsg("Falha técnica no carregamento.");
-                        }
-                        onError(error);
-                    }
-                }
-            };
-
-            await bricksBuilder.create('payment', 'paymentBrick_container', settings);
         } catch (err: any) {
-            console.error("❌ Crash MP:", err);
-            hasBeenInitialized.current = false;
+            console.error("❌ Erro PicPay:", err);
             setStatus("error");
+            setErrorMsg(err.message || "Falha ao gerar pagamento.");
+            onError(err);
         }
-    }, [clientInfo, planId, planName, price, onError, onSuccess]);
+    }, [clientInfo, planId, planName, price, onError]);
 
     useEffect(() => {
-        let isMounted = true;
-        const handleError = (e: any) => {
-            const msg = (e.reason?.message || e.message || "").toLowerCase();
-            if (msg.includes("site id") || msg.includes("site_id") || msg.includes("mercadopago")) {
-                if (isMounted) setStatus("extension");
-            }
-        };
-        window.addEventListener('unhandledrejection', handleError);
-        window.addEventListener('error', handleError);
-
-        const checkMP = setInterval(() => {
-            if (!isMounted) return;
-            if (window.MercadoPago && !hasBeenInitialized.current) {
-                initMP();
-            } else if (!window.MercadoPago) {
-                retryCount.current++;
-                if (retryCount.current > 15) {
-                    setStatus("error");
-                    setErrorMsg("Scripts de segurança bloqueados.");
-                }
-            }
-        }, 1000);
-
-        return () => {
-            isMounted = false;
-            window.removeEventListener('unhandledrejection', handleError);
-            window.removeEventListener('error', handleError);
-            clearInterval(checkMP);
-        };
-    }, [initMP]);
+        generatePayment();
+    }, [generatePayment]);
 
     const copyPixCode = () => {
         if (pixData?.qr_code) {
@@ -176,36 +72,41 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
     };
 
     return (
-        <div className="w-full relative min-h-[500px] flex flex-col items-center justify-center py-2">
+        <div className="w-full relative min-h-[400px] flex flex-col items-center justify-center py-2">
 
             <AnimatePresence mode="wait">
                 {status === "loading" && (
                     <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
                         <Loader2 className="w-10 h-10 text-cyan-500 animate-spin mb-4" />
-                        <h3 className="text-white font-black text-lg mb-1 tracking-tighter uppercase">Conectando...</h3>
+                        <h3 className="text-white font-black text-lg mb-1 tracking-tighter uppercase text-center">Gerando seu Pix...</h3>
+                        <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest text-center">Conectando ao PicPay</p>
                     </motion.div>
                 )}
 
-                {status === "pix_success" && pixData && (
+                {status === "pix_ready" && pixData && (
                     <motion.div
-                        key="pix_success"
+                        key="pix_ready"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="flex flex-col items-center text-center w-full max-w-sm"
+                        className="flex flex-col items-center text-center w-full"
                     >
                         <div className="w-14 h-14 bg-emerald-500/10 flex items-center justify-center rounded-full mb-4">
-                            <Check className="text-emerald-500 w-7 h-7" />
+                            <QrCode className="text-emerald-500 w-7 h-7" />
                         </div>
-                        <h3 className="text-white font-black text-xl mb-1 uppercase tracking-tighter">Pix Pronto</h3>
-                        <p className="text-slate-400 text-xs mb-6 px-4">Pague pelo QR Code ou copie o código abaixo.</p>
+                        <h3 className="text-white font-black text-xl mb-1 uppercase tracking-tighter">Tudo pronto!</h3>
+                        <p className="text-slate-400 text-xs mb-6 px-4">Escaneie o QR Code ou use o código abaixo.</p>
 
-                        {pixData.qr_code_base64 && (
+                        {pixData.qr_code_base64 ? (
                             <div className="bg-white p-3 rounded-2xl mb-6 shadow-2xl">
                                 <img
-                                    src={`data:image/jpeg;base64,${pixData.qr_code_base64}`}
+                                    src={`data:image/png;base64,${pixData.qr_code_base64}`}
                                     alt="QR Code Pix"
-                                    className="w-40 h-40 block"
+                                    className="w-44 h-44 block"
                                 />
+                            </div>
+                        ) : (
+                            <div className="w-44 h-44 bg-slate-900 border border-white/5 rounded-2xl mb-6 flex items-center justify-center">
+                                <p className="text-[10px] text-slate-500 font-bold uppercase p-4">QR Code indisponível. Use o copia e cola.</p>
                             </div>
                         )}
 
@@ -213,7 +114,7 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                             <div className="bg-slate-900 border border-white/5 p-4 rounded-xl flex flex-col gap-2">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest text-left">Código Copia e Cola</p>
                                 <div className="flex items-center gap-2">
-                                    <p className="text-[11px] text-white font-mono truncate text-left flex-1">{pixData.qr_code}</p>
+                                    <p className="text-[11px] text-white font-mono truncate text-left flex-1 select-all">{pixData.qr_code}</p>
                                     <button
                                         onClick={copyPixCode}
                                         className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors border border-white/5"
@@ -222,39 +123,47 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                                     </button>
                                 </div>
                             </div>
+
+                            {pixData.payment_url && (
+                                <a
+                                    href={pixData.payment_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 w-full py-3 text-[10px] font-black uppercase tracking-widest text-cyan-400 border border-cyan-400/20 rounded-xl hover:bg-cyan-400/10 transition-colors"
+                                >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Pagar no App PicPay / Cartão
+                                </a>
+                            )}
                         </div>
 
-                        <div className="mt-8 mx-4 p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-xl">
+                        <div className="mt-8 p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-xl mx-4">
                             <p className="text-[9px] text-cyan-400 font-bold uppercase leading-relaxed text-center">
-                                Seu plano será ativado após o pagamento. Não é necessário enviar o comprovante.
+                                Ativação automática após o pagamento. <br />
+                                O código expira em 1 hora.
                             </p>
                         </div>
                     </motion.div>
                 )}
 
-                {status === "extension" && (
-                    <motion.div key="extension" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center p-8 bg-red-950/20 border border-red-500/20 rounded-[2rem]">
-                        <AlertTriangle className="text-red-500 w-16 h-16 mb-4" />
-                        <h3 className="text-white font-black text-xl mb-4 tracking-tighter uppercase">Conflito Detectado</h3>
-                        <p className="text-slate-400 text-sm mb-6">Uma extensão do seu navegador está bloqueando o pagamento. Use uma <b>Janela Anônima</b> para continuar.</p>
-                        <button onClick={() => window.location.reload()} className="w-full bg-white text-black py-4 rounded-xl font-black text-xs uppercase hover:bg-cyan-400 transition-all shadow-lg">RECARREGAR</button>
-                    </motion.div>
-                )}
-
                 {status === "error" && (
                     <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center p-8">
-                        <AlertTriangle className="text-yellow-500 w-10 h-10 mb-4" />
-                        <h3 className="text-white font-black text-lg mb-2 tracking-tighter uppercase">Não foi possível carregar</h3>
-                        <p className="text-slate-500 text-xs mb-8">{errorMsg}</p>
-                        <button onClick={() => window.location.reload()} className="bg-white/10 text-white px-8 py-4 font-black text-[10px] uppercase hover:bg-white/20 transition-all rounded-xl border border-white/5">Tentar de novo</button>
+                        <AlertTriangle className="text-red-500 w-12 h-12 mb-4" />
+                        <h3 className="text-white font-black text-lg mb-2 tracking-tighter uppercase">Erro ao gerar pagamento</h3>
+                        <p className="text-slate-500 text-xs mb-8 leading-relaxed">{errorMsg}</p>
+                        <button
+                            onClick={() => {
+                                hasCalledAPI.current = false;
+                                setStatus("loading");
+                                generatePayment();
+                            }}
+                            className="bg-white text-black px-8 py-4 font-black text-[10px] uppercase hover:bg-cyan-400 transition-all rounded-xl shadow-lg w-full"
+                        >
+                            Tentar Novamente
+                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>
-
-            <div
-                id="paymentBrick_container"
-                className={`w-full transition-all duration-1000 ${status === "ready" ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden pointer-events-none'}`}
-            />
         </div>
     );
 }

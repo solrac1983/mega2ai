@@ -12,6 +12,7 @@ const schema = z.object({
     name: z.string().min(3, "Nome muito curto"),
     email: z.string().email("Email inválido"),
     whatsapp: z.string().min(10, "WhatsApp inválido (DDD+Número)"),
+    document: z.string().min(11, "CPF inválido").max(14, "CPF inválido"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -151,9 +152,20 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                                         {...register("whatsapp")}
                                         onChange={handlePhoneChange}
                                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-mono"
-                                        placeholder="(LL) 99999-9999"
+                                        placeholder="(00) 00000-0000"
                                     />
                                     {errors.whatsapp && <p className="text-red-500 text-xs mt-1">{errors.whatsapp.message}</p>}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">CPF (apenas números)</label>
+                                    <input
+                                        {...register("document")}
+                                        maxLength={14}
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-mono"
+                                        placeholder="000.000.000-00"
+                                    />
+                                    {errors.document && <p className="text-red-500 text-xs mt-1">{errors.document.message}</p>}
                                 </div>
 
                                 <div className="pt-4">

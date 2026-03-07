@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
-import { mpClient } from "@/lib/mercadopago";
-import { Payment } from "mercadopago";
+import { createPicPayPayment } from "@/lib/picpay";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { formData, planId, planName, price, clientInfo } = body;
-        const { name, email, whatsapp } = clientInfo;
+        const { planId, planName, price, clientInfo } = body;
+        const { name, email, whatsapp, document } = clientInfo;
 
-        console.log("💳 [Payment Process] Iniciando processamento:", {
-            planName,
-            email,
-            payment_method_id: formData.payment_method_id
-        });
+        console.log("💳 [PicPay Process] Iniciando:", { planName, email });
 
         // 1. Criar/Atualizar cliente no banco
         const client = await (prisma as any).client.upsert({
@@ -22,84 +17,43 @@ export async function POST(req: Request) {
             create: { name, email, whatsapp },
         });
 
-        // 2. Preparar payload do Mercado Pago
-        const [firstName, ...lastNameParts] = name.split(" ");
-        const lastName = lastNameParts.join(" ") || "Cliente";
+        // 2. Preparar dados do comprador
+        const names = name.trim().split(" ");
+        const firstName = names[0];
+        const lastName = names.length > 1 ? names.slice(1).join(" ") : "Cliente";
 
-        // GARANTIA: Se o valor vier nulo do frontend, usamos o preço enviado como backup
-        // NOTE: 'price' variable is not defined in the original context.
-        // It is assumed to be passed in the request body or derived from 'planId'/'planName'.
-        // For this faithful edit, it's included as per instruction, but will cause a runtime error if not defined elsewhere.
-        const finalAmount = Number(formData.transaction_amount) || Number(price.replace(',', '.'));
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://mega2ai.com";
 
-        console.log("💰 [Payment Process] Valor Final:", finalAmount);
-
-        if (!finalAmount || isNaN(finalAmount)) {
-            throw new Error("Valor do pagamento inválido ou não detectado.");
-        }
-
-        const mpPayload: any = {
-            transaction_amount: finalAmount,
-            description: `mega_2ai - Plano ${planName}`,
-            payment_method_id: formData.payment_method_id || "pix",
-            payer: {
-                email: email,
-                first_name: firstName,
-                last_name: lastName,
-                identification: formData.payer?.identification,
-            },
-            notification_url: `${process.env.WEBHOOK_URL}/api/webhooks/mercadopago`,
-            external_reference: client.id,
-            installments: formData.installments ? Number(formData.installments) : 1,
-            issuer_id: formData.issuer_id,
-            token: formData.token,
-        };
-
-        // Adicionar informações do ponto de interação (Pix)
-        if (formData.point_of_interaction) {
-            mpPayload.point_of_interaction = formData.point_of_interaction;
-        }
-
-        console.log("📦 [Payment Process] Payload MP:", JSON.stringify(mpPayload, null, 2));
-
-        const payment = new Payment(mpClient);
-        const paymentResponse = await payment.create({ body: mpPayload });
-
-        console.log("✅ [Payment Process] Resposta MP:", {
-            id: paymentResponse.id,
-            status: paymentResponse.status,
-            status_detail: paymentResponse.status_detail
+        // 3. Criar pagamento no PicPay
+        const picpayResponse = await createPicPayPayment({
+            referenceId: `${client.id}_${Date.now()}`,
+            callbackUrl: `${baseUrl}/api/webhooks/picpay`,
+            returnUrl: `${baseUrl}/success`,
+            value: Number(price.replace(',', '.')),
+            buyer: {
+                firstName,
+                lastName,
+                document: document || "000.000.000-00",
+                email,
+                phone: whatsapp
+            }
         });
 
+        console.log("✅ [PicPay Process] Criado:", picpayResponse.paymentId);
+
         return NextResponse.json({
-            status: paymentResponse.status,
-            status_detail: paymentResponse.status_detail,
-            id: paymentResponse.id,
-            qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code,
-            qr_code_base64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64,
+            status: "pending",
+            id: picpayResponse.paymentId,
+            qr_code: picpayResponse.qrcode?.content,
+            qr_code_base64: picpayResponse.qrcode?.base64?.replace(/^data:image\/[a-z]+;base64,/, ''),
+            payment_url: picpayResponse.paymentUrl
         });
 
     } catch (error: any) {
-        console.error("❌ [Payment Process] ERRO CRÍTICO:", error);
-
-        // Tentar extrair detalhes específicos do erro do Mercado Pago
-        let errorMessage = "Verifique seus dados.";
-
-        // No SDK v2, detalhes costumam vir em error.api_response.body
-        const body = error.api_response?.body || error.response?.body;
-
-        if (body?.cause?.[0]?.description) {
-            errorMessage = body.cause[0].description;
-        } else if (body?.message) {
-            errorMessage = body.message;
-        } else if (error.message) {
-            errorMessage = error.message;
-        }
-
+        console.error("❌ [PicPay Process] ERRO:", error);
         return NextResponse.json({
-            error: "Erro ao processar pagamento",
-            details: errorMessage,
-            mp_details: body || error
+            error: "Erro ao processar PicPay",
+            details: error.message
         }, { status: 500 });
     }
 }
