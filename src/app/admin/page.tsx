@@ -23,7 +23,9 @@ import {
     Bell,
     Send,
     X,
-    MessageSquare
+    MessageSquare,
+    Edit,
+    Trash2
 } from "lucide-react";
 
 type Tab = "dashboard" | "clients" | "settings";
@@ -75,6 +77,9 @@ export default function AdminPanel() {
     const [message, setMessage] = useState("");
     const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
     const [selectedClients, setSelectedClients] = useState<string[]>([]);
+    const [editingClient, setEditingClient] = useState<Client | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [clientToDelete, setClientToDelete] = useState<string | null>(null);
     const [broadcastMessage, setBroadcastMessage] = useState("");
 
     // Data states
@@ -153,6 +158,50 @@ export default function AdminPanel() {
                 setBroadcastMessage("");
                 setSelectedClients([]);
                 setIsNotifyModalOpen(false);
+                setTimeout(() => setMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdateClient = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingClient) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/clients/${editingClient.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(editingClient)
+            });
+            if (res.ok) {
+                setMessage("Cliente atualizado!");
+                setEditingClient(null);
+                fetchData();
+                setTimeout(() => setMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteClient = async () => {
+        if (!clientToDelete) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/admin/clients/${clientToDelete}`, {
+                method: "DELETE"
+            });
+            if (res.ok) {
+                setMessage("Cliente excluído!");
+                setIsDeleteDialogOpen(false);
+                setClientToDelete(null);
+                fetchData();
                 setTimeout(() => setMessage(""), 3000);
             }
         } catch (error) {
@@ -252,6 +301,11 @@ export default function AdminPanel() {
                                 selectedClients={selectedClients}
                                 setSelectedClients={setSelectedClients}
                                 onNotify={() => setIsNotifyModalOpen(true)}
+                                onEdit={(client) => setEditingClient(client)}
+                                onDelete={(id) => {
+                                    setClientToDelete(id);
+                                    setIsDeleteDialogOpen(true);
+                                }}
                             />
                         )}
                         {activeTab === "settings" && (
@@ -269,34 +323,30 @@ export default function AdminPanel() {
 
             {/* Notification Modal */}
             <AnimatePresence>
+                {/* Modal Notificar Selecionados */}
                 {isNotifyModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
                             onClick={() => setIsNotifyModalOpen(false)}
-                            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
                         />
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-3xl p-8 relative z-10 shadow-2xl"
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="glass-card w-full max-w-xl p-8 rounded-3xl relative z-10"
                         >
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold flex items-center gap-3">
-                                    <Bell className="text-cyan-500" />
-                                    Notificar Clientes ({selectedClients.length})
-                                </h3>
-                                <button onClick={() => setIsNotifyModalOpen(false)} className="text-slate-500 hover:text-white">
-                                    <X size={24} />
-                                </button>
+                            <button onClick={() => setIsNotifyModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                            <div className="flex items-center gap-4 mb-8 text-emerald-500">
+                                <Bell className="w-8 h-8" />
+                                <h2 className="text-3xl font-black uppercase tracking-tighter">Broadcast WhatsApp</h2>
                             </div>
-
                             <div className="space-y-6">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Mensagem do WhatsApp</label>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Sua Mensagem</label>
                                     <textarea
                                         value={broadcastMessage}
                                         onChange={(e) => setBroadcastMessage(e.target.value)}
@@ -304,7 +354,6 @@ export default function AdminPanel() {
                                         placeholder="Digite a mensagem que será enviada para os clientes selecionados..."
                                     />
                                 </div>
-
                                 <button
                                     onClick={handleBroadcast}
                                     disabled={loading || !broadcastMessage}
@@ -312,6 +361,98 @@ export default function AdminPanel() {
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                                     Enviar Notificação
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Modal Editar Cliente */}
+                {editingClient && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            onClick={() => setEditingClient(null)}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="glass-card w-full max-w-md p-8 rounded-3xl relative z-10"
+                        >
+                            <button onClick={() => setEditingClient(null)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-8">Editar Cliente</h2>
+                            <form onSubmit={handleUpdateClient} className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Nome</label>
+                                    <input
+                                        value={editingClient.name}
+                                        onChange={e => setEditingClient({ ...editingClient, name: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Email</label>
+                                    <input
+                                        value={editingClient.email}
+                                        onChange={e => setEditingClient({ ...editingClient, email: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">WhatsApp</label>
+                                    <input
+                                        value={editingClient.whatsapp}
+                                        onChange={e => setEditingClient({ ...editingClient, whatsapp: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-cyan-500 text-slate-950 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-cyan-400 transition-all disabled:opacity-50 mt-4"
+                                >
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Salvar Alterações"}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Modal Excluir Cliente */}
+                {isDeleteDialogOpen && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="glass-card w-full max-w-sm p-8 rounded-3xl relative z-10 border border-red-500/20"
+                        >
+                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-4 text-red-500">Excluir Cliente?</h2>
+                            <p className="text-slate-400 text-sm mb-8">
+                                Esta ação é irreversível. Todas as licenças e pagamentos deste cliente também serão removidos.
+                            </p>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setIsDeleteDialogOpen(false)}
+                                    className="flex-1 bg-white/5 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDeleteClient}
+                                    disabled={loading}
+                                    className="flex-1 bg-red-500 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-red-400 transition-all disabled:opacity-50 flex items-center justify-center"
+                                >
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Excluir"}
                                 </button>
                             </div>
                         </motion.div>
@@ -415,11 +556,13 @@ function DashboardView({ data }: { data: DashboardData }) {
     );
 }
 
-function ClientsView({ clients, selectedClients, setSelectedClients, onNotify }: {
+function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, onEdit, onDelete }: {
     clients: Client[],
     selectedClients: string[],
     setSelectedClients: (ids: string[]) => void,
-    onNotify: () => void
+    onNotify: () => void,
+    onEdit: (client: Client) => void,
+    onDelete: (id: string) => void
 }) {
     const [search, setSearch] = useState("");
 
@@ -488,6 +631,7 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify }:
                             <th className="px-8 py-6">WhatsApp</th>
                             <th className="px-8 py-6">Status Pagamento</th>
                             <th className="px-8 py-6">Data de Registro</th>
+                            <th className="px-8 py-6 text-right">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -527,6 +671,24 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify }:
                                     </td>
                                     <td className="px-8 py-6 text-xs text-slate-400 font-mono">
                                         {new Date(client.createdAt).toLocaleString()}
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onEdit(client); }}
+                                                className="p-2 text-slate-500 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-xl transition-all"
+                                                title="Editar Cliente"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onDelete(client.id); }}
+                                                className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                                                title="Excluir Cliente"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             );
