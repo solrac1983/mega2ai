@@ -10,12 +10,40 @@ export async function POST(req: Request) {
 
         console.log("💳 [PicPay Process] Iniciando:", { planName, email });
 
-        // 1. Criar/Atualizar cliente no banco
-        const client = await (prisma as any).client.upsert({
-            where: { email },
-            update: { name, whatsapp },
-            create: { name, email, whatsapp },
+        // 1. Criar/Atualizar cliente no banco de forma robusta
+        // Tentamos encontrar por WhatsApp primeiro (chave primária de fato no dia a dia)
+        let client = await (prisma as any).client.findUnique({
+            where: { whatsapp },
         });
+
+        if (client) {
+            // Existe o WhatsApp, atualizamos o email (e nome se mudou)
+            client = await (prisma as any).client.update({
+                where: { id: client.id },
+                data: { email, name },
+            });
+            console.log("👤 [PicPay Process] Cliente existente (WhatsApp):", client.id);
+        } else {
+            // Se não achou pelo WhatsApp, tentamos pelo Email
+            client = await (prisma as any).client.findUnique({
+                where: { email },
+            });
+
+            if (client) {
+                // Existe o email mas outro WhatsApp? Atualizamos o WhatsApp
+                client = await (prisma as any).client.update({
+                    where: { id: client.id },
+                    data: { whatsapp, name },
+                });
+                console.log("👤 [PicPay Process] Cliente existente (Email):", client.id);
+            } else {
+                // Novo cliente total
+                client = await (prisma as any).client.create({
+                    data: { name, email, whatsapp },
+                });
+                console.log("👤 [PicPay Process] Novo cliente criado:", client.id);
+            }
+        }
 
         // 2. Preparar dados do comprador
         const names = name.trim().split(" ");

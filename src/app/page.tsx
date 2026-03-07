@@ -157,7 +157,7 @@ export default function LandingPage() {
           >
             <ZapIcon className="text-black" />
           </motion.div>
-          <span className="text-3xl font-black tracking-tighter uppercase font-display text-white">mega_2ai</span>
+          <span className="text-3xl font-black tracking-tighter uppercase font-display text-white">mega_2ai <span className="text-cyan-500">v2</span></span>
         </div>
         <div className="flex items-center gap-8">
           <div className="hidden md:flex gap-8 text-xs font-black uppercase tracking-[0.2em] text-white/50">
