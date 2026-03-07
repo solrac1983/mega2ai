@@ -20,16 +20,14 @@ export async function getPicPayToken() {
         throw new Error("PicPay credentials missing in .env");
     }
 
-    // Basic Auth para obter o token
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
 
     const response = await fetch('https://checkout-api.picpay.com/oauth2/token', {
         method: 'POST',
         headers: {
-            'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded'
         },
         body: params
