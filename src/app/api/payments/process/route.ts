@@ -69,13 +69,23 @@ export async function POST(req: Request) {
         console.error("❌ [Payment Process] ERRO CRÍTICO:", error);
 
         // Tentar extrair detalhes específicos do erro do Mercado Pago
-        const errorMessage = error.message || "Erro desconhecido";
-        const errorDetails = error.response || error;
+        let errorMessage = "Verifique seus dados.";
+
+        // No SDK v2, detalhes costumam vir em error.api_response.body
+        const body = error.api_response?.body || error.response?.body;
+
+        if (body?.cause?.[0]?.description) {
+            errorMessage = body.cause[0].description;
+        } else if (body?.message) {
+            errorMessage = body.message;
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
 
         return NextResponse.json({
             error: "Erro ao processar pagamento",
             details: errorMessage,
-            mp_details: errorDetails
+            mp_details: body || error
         }, { status: 500 });
     }
 }
