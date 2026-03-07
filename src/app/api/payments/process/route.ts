@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { createPicPayPayment } from "@/lib/picpay";
 import prisma from "@/lib/prisma";
-import { payment } from "@/lib/mercadopago";
 
 export async function POST(req: Request) {
     try {
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
         const { planId, planName, price, clientInfo } = body;
         const { name, email, whatsapp, document } = clientInfo;
 
-        console.log("💳 [MP Process] Iniciando:", { planName, email });
+        console.log("💳 [PicPay Process] Iniciando:", { planName, email });
 
         // 1. Criar/Atualizar cliente no banco de forma robusta
         let client = await (prisma as any).client.findUnique({
@@ -37,47 +37,42 @@ export async function POST(req: Request) {
             }
         }
 
-        // 2. Criar Pix via Mercado Pago Backend API
-        const priceNumber = Number(price.replace(",", "."));
+        // 2. Preparar dados do comprador
+        const names = name.trim().split(" ");
+        const firstName = names[0];
+        const lastName = names.length > 1 ? names.slice(1).join(" ") : "Cliente";
 
-        const paymentData = {
-            body: {
-                transaction_amount: priceNumber,
-                description: `Compra - ${planName || "Mega_2ai"}`,
-                payment_method_id: "pix",
-                payer: {
-                    email: client.email,
-                    first_name: name.split(" ")[0],
-                    last_name: name.split(" ").slice(1).join(" ") || "Cliente",
-                    identification: {
-                        type: "CPF",
-                        number: document ? document.replace(/\D/g, "") : "00000000000"
-                    }
-                },
-                external_reference: client.id,
-                notification_url: `${process.env.WEBHOOK_URL}/api/webhooks/mercadopago`
+        const baseUrl = process.env.NEXT_PUBLIC_URL || "https://mega2ai.com";
+
+        // 3. Criar pagamento no PicPay
+        const picpayResponse = await createPicPayPayment({
+            referenceId: `${client.id}_${Date.now()}`,
+            callbackUrl: `${baseUrl}/api/webhooks/picpay`,
+            returnUrl: `${baseUrl}/obrigado?plan=paid`,
+            value: Number(price.replace(',', '.')),
+            buyer: {
+                firstName,
+                lastName,
+                document: document ? document.replace(/\D/g, "") : "00000000000",
+                email,
+                phone: whatsapp.replace(/\D/g, "")
             }
-        };
+        });
 
-        const mpResponse = await payment.create(paymentData);
-
-        if (!mpResponse || !mpResponse.point_of_interaction?.transaction_data) {
-            console.error("❌ MP QR Code Error:", mpResponse);
-            throw new Error("Falha ao extrair QR Code do Mercado Pago");
-        }
-
-        const qrCodeData = mpResponse.point_of_interaction.transaction_data;
+        console.log("✅ [PicPay Process] Criado:", picpayResponse.paymentId);
 
         return NextResponse.json({
-            qr_code: qrCodeData.qr_code,
-            qr_code_base64: qrCodeData.qr_code_base64,
-            payment_url: (mpResponse as any).point_of_interaction?.transaction_data?.ticket_url || ""
+            status: "pending",
+            id: picpayResponse.paymentId,
+            qr_code: picpayResponse.qrcode?.content,
+            qr_code_base64: picpayResponse.qrcode?.base64?.replace(/^data:image\/[a-z]+;base64,/, ''),
+            payment_url: picpayResponse.paymentUrl
         });
 
     } catch (error: any) {
-        console.error("❌ Erro MP API:", error);
+        console.error("❌ [PicPay Process] ERRO:", error);
         return NextResponse.json({
-            error: "Erro ao gerar PIX",
+            error: "Erro ao processar PicPay",
             details: error.message || String(error)
         }, { status: 500 });
     }
