@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, RefreshCw, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
+import { AlertTriangle, RefreshCw, ShieldCheck, Loader2, Copy, Check, QrCode } from "lucide-react";
 
 declare global {
     interface Window {
@@ -24,8 +24,10 @@ interface Props {
 }
 
 export default function TransparentCheckout({ planId, planName, price, clientInfo, onSuccess, onError }: Props) {
-    const [status, setStatus] = useState<"loading" | "ready" | "error" | "extension">("loading");
+    const [status, setStatus] = useState<"loading" | "ready" | "error" | "extension" | "pix_success">("loading");
     const [errorMsg, setErrorMsg] = useState<string>("");
+    const [pixData, setPixData] = useState<{ qr_code: string; qr_code_base64: string } | null>(null);
+    const [copied, setCopied] = useState(false);
     const hasBeenInitialized = useRef(false);
     const retryCount = useRef(0);
 
@@ -37,27 +39,16 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
 
         hasBeenInitialized.current = true;
 
-        // CHAVE DE PRODUÇÃO REAL FORÇADA
         const PUBLIC_KEY = "APP_USR-5d74603f-efaf-4ad2-b926-8306e48963bd";
 
-        console.log("-----------------------------------------");
-        console.log("🚀 INICIANDO CANAL DE PAGAMENTO");
-        console.log("📦 PLANO:", planName);
-        console.log("-----------------------------------------");
-
         try {
-            const mp = new window.MercadoPago(PUBLIC_KEY, {
-                locale: 'pt-BR'
-            });
-
+            const mp = new window.MercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
             const bricksBuilder = mp.bricks();
 
             const settings = {
                 initialization: {
                     amount: Number(price.replace(',', '.')),
-                    payer: {
-                        email: clientInfo.email,
-                    },
+                    payer: { email: clientInfo.email },
                 },
                 customization: {
                     visual: {
@@ -77,10 +68,7 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                     }
                 },
                 callbacks: {
-                    onReady: () => {
-                        console.log("✅ Sistema Pronto.");
-                        setStatus("ready");
-                    },
+                    onReady: () => setStatus("ready"),
                     onSubmit: async (formData: any) => {
                         try {
                             const res = await fetch("/api/payments/process", {
@@ -98,7 +86,14 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                             const result = await res.json();
                             if (!res.ok) throw new Error(result.details || "Erro no processamento");
 
-                            if (result.status === "approved" || result.status === "pending") {
+                            // Se for Pix, mostramos o código na tela
+                            if (formData.payment_method_id === "pix" && result.qr_code) {
+                                setPixData({
+                                    qr_code: result.qr_code,
+                                    qr_code_base64: result.qr_code_base64
+                                });
+                                setStatus("pix_success");
+                            } else if (result.status === "approved" || result.status === "pending") {
                                 onSuccess();
                             } else {
                                 onError(result);
@@ -123,7 +118,6 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
 
             await bricksBuilder.create('payment', 'paymentBrick_container', settings);
         } catch (err: any) {
-            console.error("❌ Falha crítica:", err);
             hasBeenInitialized.current = false;
             setStatus("error");
         }
@@ -131,26 +125,21 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
 
     useEffect(() => {
         let isMounted = true;
-
-        // Listener para erros silenciosos do Mercado Pago
         const handleError = (e: any) => {
             const msg = (e.reason?.message || e.message || "").toLowerCase();
             if (msg.includes("site id") || msg.includes("site_id") || msg.includes("mercadopago")) {
-                console.warn("⚠️ Detectada falha silenciosa de extensão.");
                 if (isMounted) setStatus("extension");
             }
         };
-
         window.addEventListener('unhandledrejection', handleError);
         window.addEventListener('error', handleError);
 
-        // Timeout Agressivo: 7 segundos
         const timeout = setTimeout(() => {
             if (isMounted && status === "loading") {
                 setStatus("error");
-                setErrorMsg("O carregamento travou. Isso geralmente ocorre devido a extensões de bloqueio.");
+                setErrorMsg("O carregamento travou devido a instabilidade ou extensões.");
             }
-        }, 7000);
+        }, 8000);
 
         const checkMP = setInterval(() => {
             if (!isMounted) return;
@@ -174,90 +163,93 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
         };
     }, [initMP, status]);
 
-    const forceReload = () => {
-        window.location.reload();
+    const copyPixCode = () => {
+        if (pixData?.qr_code) {
+            navigator.clipboard.writeText(pixData.qr_code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     return (
-        <div className="w-full relative min-h-[480px] flex flex-col items-center justify-center py-8">
+        <div className="w-full relative min-h-[480px] flex flex-col items-center justify-center py-4">
 
             <AnimatePresence mode="wait">
                 {status === "loading" && (
+                    <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
+                        <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-6" />
+                        <h3 className="text-white font-black text-xl mb-2 tracking-tighter uppercase">Sincronizando</h3>
+                    </motion.div>
+                )}
+
+                {status === "pix_success" && pixData && (
                     <motion.div
-                        key="loading"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="flex flex-col items-center"
+                        key="pix_success"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center text-center w-full max-w-sm px-4"
                     >
-                        <div className="relative mb-8">
-                            <Loader2 className="w-16 h-16 text-cyan-500 animate-spin" />
-                            <div className="absolute inset-0 bg-cyan-500/20 blur-2xl rounded-full" />
+                        <div className="w-16 h-16 bg-emerald-500/10 flex items-center justify-center rounded-full mb-6">
+                            <Check className="text-emerald-500 w-8 h-8" />
                         </div>
-                        <h3 className="text-white font-black text-xl mb-2 tracking-tighter uppercase">Sincronizando Banco</h3>
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">
-                            Criptografando Canal Seguro...
-                        </p>
+                        <h3 className="text-white font-black text-2xl mb-2 uppercase tracking-tighter">Pix Gerado!</h3>
+                        <p className="text-slate-400 text-sm mb-8">Escaneie o QR Code ou copie o código abaixo para pagar.</p>
+
+                        <div className="bg-white p-4 rounded-3xl mb-8 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                            <img
+                                src={`data:image/jpeg;base64,${pixData.qr_code_base64}`}
+                                alt="QR Code Pix"
+                                className="w-48 h-48 block"
+                            />
+                        </div>
+
+                        <div className="w-full space-y-4">
+                            <div className="relative group">
+                                <div className="absolute inset-0 bg-cyan-500/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="relative bg-slate-900 border border-white/5 p-4 rounded-xl flex flex-col gap-2 overflow-hidden">
+                                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest text-left">Código Pix (Copia e Cola)</p>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 overflow-hidden">
+                                            <p className="text-[11px] text-white font-mono truncate text-left">{pixData.qr_code}</p>
+                                        </div>
+                                        <button
+                                            onClick={copyPixCode}
+                                            className="flex-shrink-0 bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors"
+                                        >
+                                            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {copied && (
+                                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">Código copiado com sucesso!</motion.p>
+                            )}
+                        </div>
+
+                        <div className="mt-10 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl w-full">
+                            <p className="text-[10px] text-cyan-400 font-bold uppercase leading-relaxed">
+                                🔔 Após o pagamento seu plano será ativado automaticamente. Pode fechar esta janela se preferir.
+                            </p>
+                        </div>
                     </motion.div>
                 )}
 
                 {status === "extension" && (
-                    <motion.div
-                        key="extension"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex flex-col items-center text-center p-8 bg-red-950/20 border border-red-500/20 rounded-[2rem]"
-                    >
+                    <motion.div key="extension" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center p-8 bg-red-950/20 border border-red-500/20 rounded-[2rem]">
                         <AlertTriangle className="text-red-500 w-16 h-16 mb-6" />
-                        <h3 className="text-white font-black text-2xl mb-4 tracking-tighter uppercase">Bloqueio Ativo</h3>
-                        <p className="text-slate-400 text-sm mb-8 max-w-[300px]">
-                            O seu navegador impediu a conexão segura forçando chaves de teste.
-                        </p>
-
-                        <div className="bg-white/5 p-6 rounded-2xl w-full text-left border border-white/5 mb-8">
-                            <p className="text-cyan-400 text-[10px] font-black uppercase mb-3 tracking-widest flex items-center gap-2">
-                                <ShieldCheck className="w-3 h-3" /> Solução Obrigatória
-                            </p>
-                            <p className="text-xs text-white/80 leading-relaxed font-medium">
-                                Abra esta página em uma <span className="text-white font-bold underline">Janela Anônima</span> (Ctrl+Shift+N) para finalizar o pagamento.
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={forceReload}
-                            className="group flex items-center justify-center gap-3 w-full bg-white text-black py-5 rounded-xl font-black text-xs uppercase hover:bg-cyan-400 transition-all shadow-xl"
-                        >
-                            <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-700" />
-                            RECARREGAR PÁGINA
-                        </button>
+                        <h3 className="text-white font-black text-2xl mb-4 uppercase tracking-tighter">Bloqueio Ativo</h3>
+                        <p className="text-slate-400 text-sm mb-8 leading-relaxed">Use uma <b>Janela Anônima</b> para finalizar o pagamento de forma segura.</p>
+                        <button onClick={() => window.location.reload()} className="w-full bg-white text-black py-4 rounded-xl font-black text-xs uppercase hover:bg-cyan-400 transition-all">RECARREGAR</button>
                     </motion.div>
                 )}
 
                 {status === "error" && (
-                    <motion.div
-                        key="error"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex flex-col items-center text-center p-10"
-                    >
+                    <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center text-center p-10">
                         <AlertTriangle className="text-yellow-500 w-12 h-12 mb-6" />
-                        <h3 className="text-white font-black text-lg mb-2 tracking-tighter uppercase">Erro no Carregamento</h3>
-                        <p className="text-slate-500 text-xs mb-10 max-w-[250px]">{errorMsg}</p>
-
-                        <div className="grid grid-cols-1 gap-3 w-full">
-                            <button
-                                onClick={() => window.location.reload()}
-                                className="bg-white text-black px-8 py-4 font-black text-[10px] uppercase hover:bg-cyan-400 transition-all rounded-xl"
-                            >
-                                Recarregar Página
-                            </button>
-                            <button
-                                onClick={() => setStatus("extension")}
-                                className="text-slate-500 text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors mt-4"
-                            >
-                                Tenho extensões ativas?
-                            </button>
-                        </div>
+                        <h3 className="text-white font-black text-lg mb-2 uppercase tracking-tighter">Erro de Carregamento</h3>
+                        <p className="text-slate-500 text-xs mb-10">{errorMsg}</p>
+                        <button onClick={() => window.location.reload()} className="bg-white text-black px-8 py-4 font-black text-[10px] uppercase hover:bg-cyan-400 transition-all rounded-xl">Recarregar</button>
                     </motion.div>
                 )}
             </AnimatePresence>

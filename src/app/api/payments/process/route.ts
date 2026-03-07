@@ -63,6 +63,8 @@ export async function POST(req: Request) {
             status: paymentResponse.status,
             status_detail: paymentResponse.status_detail,
             id: paymentResponse.id,
+            qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code,
+            qr_code_base64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64,
         });
 
     } catch (error: any) {
