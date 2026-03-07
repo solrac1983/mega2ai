@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, RefreshCw, ShieldCheck, Loader2, Copy, Check, QrCode, CreditCard } from "lucide-react";
+import { AlertTriangle, RefreshCw, Check, Loader2, Copy, ShieldCheck } from "lucide-react";
 
 declare global {
     interface Window {
@@ -56,15 +56,14 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                 customization: {
                     visual: {
                         style: {
-                            theme: 'dark', // Usando tema dark padrão para evitar avisos de propriedades inválidas
+                            theme: 'dark',
                         }
                     },
                     paymentMethods: {
                         maxInstallments: 12,
-                        bankTransfer: ["all"], // Inclui Pix
+                        bankTransfer: ["all"],
                         creditCard: "all",
                         debitCard: "all",
-                        // Removido ticket (Boleto)
                     }
                 },
                 callbacks: {
@@ -74,26 +73,34 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                     },
                     onSubmit: async (formData: any) => {
                         console.log("📤 Processando pagamento:", formData.payment_method_id);
+
+                        // Fallback de segurança para transaction_amount caso venha nulo
+                        const payload = {
+                            formData: {
+                                ...formData,
+                                transaction_amount: formData.transaction_amount || Number(price.replace(',', '.'))
+                            },
+                            planId,
+                            planName,
+                            price,
+                            clientInfo
+                        };
+
                         try {
                             const res = await fetch("/api/payments/process", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    formData,
-                                    planId,
-                                    planName,
-                                    price,
-                                    clientInfo
-                                })
+                                body: JSON.stringify(payload)
                             });
 
                             const result = await res.json();
                             if (!res.ok) throw new Error(result.details || "Erro no processamento");
 
-                            if (formData.payment_method_id === "pix" && result.qr_code) {
+                            if (formData.payment_method_id === "pix" && (result.qr_code || result.qr_code_base64)) {
+                                console.log("✨ Pix Gerado com sucesso!");
                                 setPixData({
-                                    qr_code: result.qr_code,
-                                    qr_code_base64: result.qr_code_base64
+                                    qr_code: result.qr_code || "",
+                                    qr_code_base64: result.qr_code_base64 || ""
                                 });
                                 setStatus("pix_success");
                             } else if (result.status === "approved" || result.status === "pending") {
@@ -113,7 +120,7 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                             setStatus("extension");
                         } else {
                             setStatus("error");
-                            setErrorMsg("Falha técnica no carregamento. Tente novamente.");
+                            setErrorMsg("Falha técnica no carregamento.");
                         }
                         onError(error);
                     }
@@ -139,13 +146,6 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
         window.addEventListener('unhandledrejection', handleError);
         window.addEventListener('error', handleError);
 
-        const timeout = setTimeout(() => {
-            if (isMounted && status === "loading") {
-                setStatus("error");
-                setErrorMsg("Tempo esgotado. Verifique sua conexão ou extensões.");
-            }
-        }, 10000);
-
         const checkMP = setInterval(() => {
             if (!isMounted) return;
             if (window.MercadoPago && !hasBeenInitialized.current) {
@@ -164,9 +164,8 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
             window.removeEventListener('unhandledrejection', handleError);
             window.removeEventListener('error', handleError);
             clearInterval(checkMP);
-            clearTimeout(timeout);
         };
-    }, [initMP, status]);
+    }, [initMP]);
 
     const copyPixCode = () => {
         if (pixData?.qr_code) {
@@ -200,13 +199,15 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                         <h3 className="text-white font-black text-xl mb-1 uppercase tracking-tighter">Pix Pronto</h3>
                         <p className="text-slate-400 text-xs mb-6 px-4">Pague pelo QR Code ou copie o código abaixo.</p>
 
-                        <div className="bg-white p-3 rounded-2xl mb-6 shadow-2xl">
-                            <img
-                                src={`data:image/jpeg;base64,${pixData.qr_code_base64}`}
-                                alt="QR Code Pix"
-                                className="w-40 h-40 block"
-                            />
-                        </div>
+                        {pixData.qr_code_base64 && (
+                            <div className="bg-white p-3 rounded-2xl mb-6 shadow-2xl">
+                                <img
+                                    src={`data:image/jpeg;base64,${pixData.qr_code_base64}`}
+                                    alt="QR Code Pix"
+                                    className="w-40 h-40 block"
+                                />
+                            </div>
+                        )}
 
                         <div className="w-full space-y-4 px-4">
                             <div className="bg-slate-900 border border-white/5 p-4 rounded-xl flex flex-col gap-2">
@@ -221,10 +222,6 @@ export default function TransparentCheckout({ planId, planName, price, clientInf
                                     </button>
                                 </div>
                             </div>
-
-                            {copied && (
-                                <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest text-center">Copiado!</p>
-                            )}
                         </div>
 
                         <div className="mt-8 mx-4 p-4 bg-cyan-500/5 border border-cyan-500/10 rounded-xl">
