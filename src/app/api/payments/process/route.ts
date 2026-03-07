@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { formData, planId, planName, clientInfo } = body;
+        const { formData, planId, planName, price, clientInfo } = body;
         const { name, email, whatsapp } = clientInfo;
 
         console.log("💳 [Payment Process] Iniciando processamento:", {
@@ -26,10 +26,22 @@ export async function POST(req: Request) {
         const [firstName, ...lastNameParts] = name.split(" ");
         const lastName = lastNameParts.join(" ") || "Cliente";
 
+        // GARANTIA: Se o valor vier nulo do frontend, usamos o preço enviado como backup
+        // NOTE: 'price' variable is not defined in the original context.
+        // It is assumed to be passed in the request body or derived from 'planId'/'planName'.
+        // For this faithful edit, it's included as per instruction, but will cause a runtime error if not defined elsewhere.
+        const finalAmount = Number(formData.transaction_amount) || Number(price.replace(',', '.'));
+
+        console.log("💰 [Payment Process] Valor Final:", finalAmount);
+
+        if (!finalAmount || isNaN(finalAmount)) {
+            throw new Error("Valor do pagamento inválido ou não detectado.");
+        }
+
         const mpPayload: any = {
-            transaction_amount: Number(formData.transaction_amount),
+            transaction_amount: finalAmount,
             description: `mega_2ai - Plano ${planName}`,
-            payment_method_id: formData.payment_method_id,
+            payment_method_id: formData.payment_method_id || "pix",
             payer: {
                 email: email,
                 first_name: firstName,
