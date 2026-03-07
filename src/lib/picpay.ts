@@ -24,7 +24,6 @@ export async function getPicPayToken() {
     params.append('grant_type', 'client_credentials');
     params.append('client_id', clientId);
     params.append('client_secret', clientSecret);
-    params.append('scope', 'checkout:payments'); // Standard scope for payments
 
     const response = await fetch('https://checkout-api.picpay.com/oauth2/token', {
         method: 'POST',
