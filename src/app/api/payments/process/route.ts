@@ -24,30 +24,67 @@ export async function POST(req: Request) {
         const payment = new Payment(mpClient);
 
         // 1. Criar/Atualizar cliente no banco de forma robusta
-        let client = await (prisma as any).client.findUnique({
-            where: { whatsapp },
-        });
-
-        if (client) {
-            client = await (prisma as any).client.update({
-                where: { id: client.id },
-                data: { email, name },
-            });
-        } else {
+        let client;
+        try {
+            // Primeiro busca se o WhatsApp já existe
             client = await (prisma as any).client.findUnique({
-                where: { email },
+                where: { whatsapp },
             });
 
             if (client) {
-                client = await (prisma as any).client.update({
-                    where: { id: client.id },
-                    data: { whatsapp, name },
-                });
+                // Se existe, verifica se o email fornecido é diferente e se já pertence a outro usuário
+                if (client.email !== email) {
+                    const existingEmail = await (prisma as any).client.findUnique({
+                        where: { email }
+                    });
+
+                    if (existingEmail && existingEmail.id !== client.id) {
+                        // Se o email já existe em OUTRA conta, apenas atualiza o nome (mantendo o email original do BD)
+                        client = await (prisma as any).client.update({
+                            where: { id: client.id },
+                            data: { name },
+                        });
+                    } else {
+                        // Se o email é novo ou pertence a esta conta, atualiza ambos
+                        client = await (prisma as any).client.update({
+                            where: { id: client.id },
+                            data: { email, name },
+                        });
+                    }
+                } else {
+                    client = await (prisma as any).client.update({
+                        where: { id: client.id },
+                        data: { name },
+                    });
+                }
             } else {
-                client = await (prisma as any).client.create({
-                    data: { name, email, whatsapp },
+                // Se WhatsApp não existe, busca pelo e-mail
+                client = await (prisma as any).client.findUnique({
+                    where: { email },
                 });
+
+                if (client) {
+                    // Se o email existe mas com outro WhatsApp, atualiza o nome
+                    // Não atualizamos o whatsapp para evitar conflito de unique field se a conta for antiga
+                    client = await (prisma as any).client.update({
+                        where: { id: client.id },
+                        data: { name },
+                    });
+                } else {
+                    // Só cria novo se WhatsApp e Email forem novos
+                    client = await (prisma as any).client.create({
+                        data: { name, email, whatsapp },
+                    });
+                }
             }
+        } catch (dbError) {
+            console.error("❌ Erro DB Cliente:", dbError);
+            // Fallback: se tudo falhar, cria um registro temporário falso só para passar o Pix
+            client = {
+                id: `temp_${Date.now()}`,
+                email: email,
+                name: name
+            };
         }
 
         // 2. Criar Pix via Mercado Pago Backend API
