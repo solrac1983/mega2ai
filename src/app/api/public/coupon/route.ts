@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 export async function POST(req: Request) {
     try {
         const { code, planId } = await req.json();
+        console.log("Validating Coupon:", { code, planId });
 
         if (!code || !planId) {
             return NextResponse.json({ error: "Cupom e plano obrigatórios" }, { status: 400 });
