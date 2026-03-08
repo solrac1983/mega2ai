@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sendWhatsapp, sendMedia } from "@/lib/evolution";
 import prisma from "@/lib/prisma";
 import { payment } from "@/lib/mercadopago";
+import { generateLicenseKey } from "@/lib/license";
 
 export async function POST(req: Request) {
     try {
@@ -62,24 +63,46 @@ export async function POST(req: Request) {
                 const videoUrl = settings?.videoUrl || "https://mega2ai.com/ajuda";
                 const planName = "Extensão Mega_2ai";
 
-                // 6. Enviar Mensagem de 'Parabéns' para o Cliente
+                // 6. Gerar a Licença Automaticamente via API do Leigos Academy
+                let licenseKey = "Pendente";
+                try {
+                    console.log(`⏳ Gerando licença para ${client.email}...`);
+                    licenseKey = await generateLicenseKey(client.email, planName);
+
+                    // Salvar a licença no banco de dados vinculada ao cliente
+                    await (prisma as any).license.create({
+                        data: {
+                            key: licenseKey,
+                            status: "active",
+                            clientId: client.id
+                        }
+                    });
+                    console.log(`✅ Licença ${licenseKey} gerada e salva com sucesso!`);
+                } catch (licError) {
+                    console.error("❌ Falha na automação da licença:", licError);
+                    licenseKey = "Falha ao gerar (O Suporte enviará em breve)";
+                }
+
+                // 7. Enviar Mensagem de 'Parabéns' com a Licença para o Cliente
                 const message = `🎉 *Parabéns, ${client.name}!* Seu pagamento foi aprovado!\n\n` +
                     `📦 *Plano Adquirido:* ${planName}\n\n` +
-                    `⏳ Nosso administrador já foi notificado da sua compra e enviará a sua *Chave de Licença* de acesso por aqui mesmo em instantes.\n\n` +
+                    `🔑 *Sua Chave de Licença:* \n*${licenseKey}*\n\n` +
+                    `_Copie a chave acima e cole na extensão para ativá-la._\n\n` +
                     `📹 *Vídeo Tutorial de Instalação:* ${videoUrl}\n` +
                     `👥 *Acesse nosso Grupo Exclusivo VIP:* ${customerGroupUrl}\n\n` +
-                    `Enquanto aguarda sua licença, já estou enviando abaixo o arquivo da extensão para você baixar. 👇`;
+                    `Já estou enviando abaixo o arquivo da extensão para você baixar. 👇`;
 
                 await sendWhatsapp(client.whatsapp, message);
                 await sendMedia(client.whatsapp, extensionUrl, "Arquivo de instalação 🚀", "mega_2ai_latest.zip");
 
-                // 7. Notificar Administrador
-                const adminMessage = `🚨 *VENDA APROVADA - GERAR LICENÇA!*\n\n` +
+                // 8. Notificar Administrador
+                const adminMessage = `🚨 *VENDA APROVADA - AUTOMATIZADA!*\n\n` +
                     `👤 *Cliente:* ${client.name}\n` +
                     `📧 *Email:* ${client.email}\n` +
                     `📱 *WhatsApp:* https://wa.me/${client.whatsapp.replace(/\D/g, "")}\n` +
                     `💵 *Valor:* R$ ${mpPayment.transaction_amount}\n\n` +
-                    `⚠️ Gere a licença e envie agora!`;
+                    `🔑 *Licença Gerada:* ${licenseKey}\n\n` +
+                    `🤖 _Tudo foi concluído, o cliente já recebeu a extensão e a licença automaticamente._`;
 
                 await sendWhatsapp(process.env.ADMIN_WHATSAPP || "", adminMessage);
             }
