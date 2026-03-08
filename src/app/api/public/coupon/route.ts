@@ -27,7 +27,8 @@ export async function POST(req: Request) {
         });
 
         if (!plan) {
-            return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
+            console.error(`Plan not found in DB: ${planId}`);
+            return NextResponse.json({ error: "Plano selecionado não existe no banco de dados. Execute o seed." }, { status: 400 });
         }
 
         let discountAmount = 0;
