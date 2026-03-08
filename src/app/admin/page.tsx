@@ -113,6 +113,8 @@ export default function AdminPanel() {
     const [broadcastMessage, setBroadcastMessage] = useState("");
     const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
     const [newAdmin, setNewAdmin] = useState({ username: "", password: "", name: "" });
+    const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+    const [newClient, setNewClient] = useState({ name: "", email: "", whatsapp: "" });
 
     // Data states
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -247,6 +249,32 @@ export default function AdminPanel() {
                 setClientToDelete(null);
                 fetchData();
                 setTimeout(() => setMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateClient = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const res = await fetch("/api/admin/clients", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newClient)
+            });
+            if (res.ok) {
+                setMessage("Cliente criado!");
+                setIsAddClientModalOpen(false);
+                setNewClient({ name: "", email: "", whatsapp: "" });
+                fetchData();
+                setTimeout(() => setMessage(""), 3000);
+            } else {
+                const err = await res.json();
+                alert(err.error || "Erro ao criar cliente");
             }
         } catch (error) {
             console.error(error);
@@ -419,6 +447,7 @@ export default function AdminPanel() {
                                     setClientToDelete(id);
                                     setIsDeleteDialogOpen(true);
                                 }}
+                                onAdd={() => setIsAddClientModalOpen(true)}
                             />
                         )}
                         {activeTab === "settings" && (
@@ -564,6 +593,76 @@ export default function AdminPanel() {
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Salvar Alterações"}
                                 </button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Modal Cadastrar Cliente */}
+                {isAddClientModalOpen && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            onClick={() => setIsAddClientModalOpen(false)}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="glass-card w-full max-w-md p-8 rounded-3xl relative z-10"
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-black uppercase tracking-tighter">Novo Cliente</h2>
+                                <button onClick={() => setIsAddClientModalOpen(false)} className="text-slate-500 hover:text-white">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateClient} className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Nome Completo</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newClient.name}
+                                        onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all"
+                                        placeholder="Ex: Carlos Silva"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">E-mail</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={newClient.email}
+                                        onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all"
+                                        placeholder="email@exemplo.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">WhatsApp (DDD + Número)</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newClient.whatsapp}
+                                        onChange={(e) => setNewClient({ ...newClient, whatsapp: e.target.value })}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all"
+                                        placeholder="5584999999999"
+                                    />
+                                </div>
+
+                                <div className="pt-4">
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full bg-cyan-500 text-slate-950 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-cyan-400 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-cyan-500/20"
+                                    >
+                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Cadastrar Cliente"}
+                                    </button>
+                                </div>
                             </form>
                         </motion.div>
                     </div>
@@ -796,13 +895,14 @@ function DashboardView({ data }: { data: DashboardData }) {
     );
 }
 
-function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, onEdit, onDelete }: {
+function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, onEdit, onDelete, onAdd }: {
     clients: Client[],
     selectedClients: string[],
     setSelectedClients: (ids: string[]) => void,
     onNotify: () => void,
     onEdit: (client: Client) => void,
-    onDelete: (id: string) => void
+    onDelete: (id: string) => void,
+    onAdd: () => void
 }) {
     const [search, setSearch] = useState("");
 
@@ -842,17 +942,27 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                     />
                 </div>
 
-                {selectedClients.length > 0 && (
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        onClick={onNotify}
-                        className="bg-cyan-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg"
+                <div className="flex gap-4">
+                    <button
+                        onClick={onAdd}
+                        className="bg-white/5 border border-white/10 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all"
                     >
-                        <MessageSquare size={16} />
-                        Notificar Selecionados ({selectedClients.length})
-                    </motion.button>
-                )}
+                        <UserPlus size={16} className="text-cyan-500" />
+                        Novos Clientes
+                    </button>
+
+                    {selectedClients.length > 0 && (
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={onNotify}
+                            className="bg-cyan-500 text-slate-950 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg"
+                        >
+                            <MessageSquare size={16} />
+                            Notificar Selecionados ({selectedClients.length})
+                        </motion.button>
+                    )}
+                </div>
             </div>
 
             <div className="glass-card rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden">

@@ -24,3 +24,38 @@ export async function GET() {
         return NextResponse.json({ error: "Erro ao carregar clientes" }, { status: 500 });
     }
 }
+
+export async function POST(req: Request) {
+    try {
+        const { name, email, whatsapp } = await req.json();
+
+        if (!name || !email || !whatsapp) {
+            return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
+        }
+
+        // Verificar se já existe
+        const existing = await prisma.client.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { whatsapp }
+                ]
+            }
+        });
+
+        if (existing) {
+            return NextResponse.json({
+                error: existing.email === email ? "Este e-mail já está cadastrado." : "Este WhatsApp já está cadastrado."
+            }, { status: 400 });
+        }
+
+        const client = await prisma.client.create({
+            data: { name, email, whatsapp }
+        });
+
+        return NextResponse.json(client);
+    } catch (error) {
+        console.error("Client POST Error:", error);
+        return NextResponse.json({ error: "Erro ao criar cliente" }, { status: 500 });
+    }
+}
