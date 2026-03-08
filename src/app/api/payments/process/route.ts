@@ -53,24 +53,33 @@ export async function POST(req: Request) {
         // 2. Criar Pix via Mercado Pago Backend API
         const priceNumber = Number(price.replace(",", "."));
 
+        let cpf = document ? document.replace(/\D/g, "") : "";
+        if (cpf.length < 11) cpf = cpf.padStart(11, "0"); // Padroniza CPF
+        if (cpf.length > 11) cpf = cpf.substring(0, 11);
+
         const paymentData = {
             body: {
                 transaction_amount: priceNumber,
                 description: `Compra - ${planName || "Mega_2ai"}`,
                 payment_method_id: "pix",
                 payer: {
-                    email: client.email,
-                    first_name: name.split(" ")[0],
-                    last_name: name.split(" ").slice(1).join(" ") || "Cliente",
+                    email: client.email.trim(),
+                    first_name: name.split(" ")[0] || "Cliente",
+                    last_name: name.split(" ").slice(1).join(" ") || "Novo",
                     identification: {
                         type: "CPF",
-                        number: document ? document.replace(/\D/g, "") : "00000000000"
+                        number: cpf
                     }
                 },
                 external_reference: client.id,
                 notification_url: `${process.env.WEBHOOK_URL}/api/webhooks/mercadopago`
+            },
+            requestOptions: {
+                idempotencyKey: `pix_${client.id}_${Date.now()}`
             }
         };
+
+        console.log("Payload MP:", JSON.stringify(paymentData.body));
 
         const mpResponse = await payment.create(paymentData);
 
