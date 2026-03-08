@@ -15,7 +15,7 @@ const evolution = axios.create({
 export async function sendWhatsapp(number: string, text: string) {
     try {
         let cleanNumber = number.replace(/\D/g, "");
-        if (cleanNumber.length === 10 || cleanNumber.length === 11) {
+        if (!cleanNumber.startsWith("55")) {
             cleanNumber = `55${cleanNumber}`;
         }
 
@@ -39,7 +39,7 @@ export async function sendWhatsapp(number: string, text: string) {
 export async function sendMedia(number: string, mediaUrl: string, caption: string, fileName: string) {
     try {
         let cleanNumber = number.replace(/\D/g, "");
-        if (cleanNumber.length === 10 || cleanNumber.length === 11) {
+        if (!cleanNumber.startsWith("55")) {
             cleanNumber = `55${cleanNumber}`;
         }
 

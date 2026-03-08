@@ -172,11 +172,12 @@ export default function AdminPanel() {
                 }),
             });
             if (res.ok) {
-                setMessage("Notificações enviadas!");
+                alert("Mensagem enviada com sucesso!");
                 setBroadcastMessage("");
                 setSelectedClients([]);
                 setIsNotifyModalOpen(false);
-                setTimeout(() => setMessage(""), 3000);
+            } else {
+                alert("Ocorreu um erro ao enviar a mensagem.");
             }
         } catch (error) {
             console.error(error);
