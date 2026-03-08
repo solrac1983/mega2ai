@@ -10,6 +10,7 @@ export async function GET() {
         });
         return NextResponse.json(coupons);
     } catch (error) {
+        console.error("Coupons GET Error:", error);
         return NextResponse.json({ error: "Erro ao buscar cupons" }, { status: 500 });
     }
 }
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
         });
         return NextResponse.json(coupon);
     } catch (error) {
-        return NextResponse.json({ error: "Erro criacão do cupom. Verifique se o código já existe." }, { status: 500 });
+        console.error("Coupons POST Error:", error);
+        return NextResponse.json({ error: "Erro na criação do cupom. Verifique se o código já existe." }, { status: 500 });
     }
 }
 

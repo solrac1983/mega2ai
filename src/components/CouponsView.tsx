@@ -30,6 +30,10 @@ export default function CouponsView() {
         setLoading(true);
         try {
             const res = await fetch("/api/admin/coupons");
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Server returned ${res.status}: ${text.substring(0, 100)}`);
+            }
             const data = await res.json();
             if (Array.isArray(data)) setCoupons(data);
         } catch (error) {

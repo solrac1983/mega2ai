@@ -23,8 +23,8 @@ export async function GET() {
                 where: { status: "APPROVED" },
                 select: { amount: true }
             }),
-            prisma.payment.count({
-                where: { amount: 0, status: "APPROVED" }
+            prisma.license.count({
+                where: { planId: "free" }
             }),
             prisma.client.findMany({
                 take: 10,
