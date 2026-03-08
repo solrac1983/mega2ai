@@ -14,7 +14,11 @@ const evolution = axios.create({
 
 export async function sendWhatsapp(number: string, text: string) {
     try {
-        const cleanNumber = number.replace(/\D/g, "");
+        let cleanNumber = number.replace(/\D/g, "");
+        if (cleanNumber.length === 10 || cleanNumber.length === 11) {
+            cleanNumber = `55${cleanNumber}`;
+        }
+
         const instancePath = encodeURIComponent(instance || "");
 
         await evolution.post(`/message/sendText/${instancePath}`, {
@@ -34,7 +38,11 @@ export async function sendWhatsapp(number: string, text: string) {
 
 export async function sendMedia(number: string, mediaUrl: string, caption: string, fileName: string) {
     try {
-        const cleanNumber = number.replace(/\D/g, "");
+        let cleanNumber = number.replace(/\D/g, "");
+        if (cleanNumber.length === 10 || cleanNumber.length === 11) {
+            cleanNumber = `55${cleanNumber}`;
+        }
+
         const instancePath = encodeURIComponent(instance || "");
 
         await evolution.post(`/message/sendMedia/${instancePath}`, {
