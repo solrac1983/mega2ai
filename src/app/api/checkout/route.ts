@@ -29,30 +29,46 @@ export async function POST(req: Request) {
 
             const { sendWhatsapp, sendMedia } = await import("@/lib/evolution");
 
-            // 1. Mensagem para o Cliente
+            // 1. Gerar Licença Grátis Automática
+            let expiresAt = null;
+            if (plan.durationDays) {
+                expiresAt = new Date();
+                expiresAt.setMinutes(expiresAt.getMinutes() + plan.durationDays);
+            }
+
+            const licenseKey = `FREE-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+            await (prisma as any).license.create({
+                data: {
+                    clientId: client.id,
+                    planId: plan.id,
+                    key: licenseKey,
+                    status: "ACTIVE",
+                    expiresAt
+                }
+            });
+
+            // 2. Mensagens para o Cliente
             const communityGroupUrl = settings?.communityGroupUrl || "https://chat.whatsapp.com/exemplo";
             const videoUrl = settings?.videoUrl || "https://mega2ai.com/ajuda";
 
             const message = `🎉 *Parabéns, ${name}!* Seu teste grátis do *mega_2ai* foi ativado!\n\n` +
-                `📦 *Plano:* ${planName}\n\n` +
-                `⏳ Em instantes, o nosso administrador enviará a sua *Chave de Licença* de acesso por aqui mesmo.\n\n` +
+                `📦 *Plano:* ${planName}\n` +
+                `🔑 *Sua Chave de Acesso:* \`${licenseKey}\`\n\n` +
                 `📹 *Vídeo Tutorial de Instalação:* ${videoUrl}\n` +
                 `👥 *Acesse nossa Comunidade:* ${communityGroupUrl}\n\n` +
-                `Enquanto isso, já estou enviando abaixo o arquivo da extensão para você baixar e instalar. 👇`;
+                `Já estou enviando abaixo o arquivo da extensão para você baixar e instalar. 👇`;
 
             await sendWhatsapp(whatsapp, message);
             await sendMedia(whatsapp, extensionUrl, "Arquivo de instalação", "mega_2ai_latest.zip");
 
-            // 2. Notificar Admin para gerar licença
-            const adminMessage = `🚨 *NOVO TESTE GRÁTIS - GERAR LICENÇA!*\n\n` +
+            // 3. Notificar Admin (apenas informativo)
+            const adminMessage = `🎁 *NOVO TESTE GRÁTIS ATIVADO*\n\n` +
                 `👤 *Cliente:* ${name}\n` +
-                `📧 *Email:* ${email}\n` +
-                `📱 *WhatsApp:* https://wa.me/${whatsapp.replace(/\D/g, "")}\n` +
-                `📦 *Plano:* ${planName}\n\n` +
-                `⚠️ *Ação Necessária:* Gere a licença no painel da Leigos Academy e envie para o cliente pelo link do WhatsApp acima.`;
+                `🔑 *Chave Gerada:* ${licenseKey}\n` +
+                `✅ O cliente já recebeu tudo automaticamente.`;
             await sendWhatsapp(process.env.ADMIN_WHATSAPP || "", adminMessage);
 
-            // Retornar flag para o frontend
             return NextResponse.json({ success: true, free: true });
         }
 

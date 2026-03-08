@@ -87,7 +87,7 @@ interface Client {
     whatsapp: string;
     createdAt: string;
     payments: { status: string; createdAt: string }[];
-    licenses?: { planId: string; expiresAt: string | null; plan: Plan; status: string }[];
+    licenses?: { planId: string; expiresAt: string | null; plan: Plan; status: string; lastUsedAt: string | null }[];
     planId?: string;
 }
 
@@ -871,6 +871,7 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                             <th className="px-8 py-6">WhatsApp</th>
                             <th className="px-8 py-6">Status Pagamento</th>
                             <th className="px-8 py-6">Licença (Restante)</th>
+                            <th className="px-8 py-6">Último Uso</th>
                             <th className="px-8 py-6">Data de Registro</th>
                             <th className="px-8 py-6 text-right">Ações</th>
                         </tr>
@@ -934,6 +935,15 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                                             }
                                         })() : (
                                             <span className="text-slate-600 font-mono text-xs">Sem Licença</span>
+                                        )}
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        {client.licenses && client.licenses[0]?.lastUsedAt ? (
+                                            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded">
+                                                {new Date(client.licenses[0].lastUsedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-600 text-[10px] uppercase font-bold tracking-widest italic text-center block">Nunca</span>
                                         )}
                                     </td>
                                     <td className="px-8 py-6 text-xs text-slate-400 font-mono">

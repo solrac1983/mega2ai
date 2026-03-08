@@ -27,8 +27,11 @@ export async function PATCH(
                     }
                 }
 
+                let licenseKey = `MNL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
                 const existingLicense = await prisma.license.findFirst({ where: { clientId: id } });
+
                 if (existingLicense) {
+                    licenseKey = existingLicense.key;
                     await prisma.license.update({
                         where: { id: existingLicense.id },
                         data: { planId, expiresAt, status: "ACTIVE" }
@@ -38,11 +41,25 @@ export async function PATCH(
                         data: {
                             clientId: id,
                             planId: plan.id,
-                            key: `MNL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                            key: licenseKey,
                             status: "ACTIVE",
                             expiresAt
                         }
                     });
+                }
+
+                // Notificar Cliente sobre a Licença Manual/Atualizada
+                try {
+                    const { sendWhatsapp } = await import("@/lib/evolution");
+                    const message = `🛠️ *Atualização de Acesso!* \n\n` +
+                        `Olá ${client.name}, seu plano foi atualizado pelo administrador.\n\n` +
+                        `📦 *Novo Plano:* ${plan.name}\n` +
+                        `🔑 *Sua Chave:* \`${licenseKey}\`\n\n` +
+                        `Acesse sua extensão agora para verificar seu novo período de uso! 🚀`;
+
+                    await sendWhatsapp(client.whatsapp, message);
+                } catch (waError) {
+                    console.error("Erro ao enviar WhatsApp manual:", waError);
                 }
             }
         }
