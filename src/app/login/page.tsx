@@ -8,7 +8,9 @@ export default function LoginPage() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [recovering, setRecovering] = useState(false);
     const [error, setError] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,6 +33,35 @@ export default function LoginPage() {
             setError("Erro ao conectar com o servidor");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRecoverPassword = async () => {
+        if (!username) {
+            setError("Digite seu usuário para recuperar a senha");
+            return;
+        }
+
+        setRecovering(true);
+        setError("");
+        setSuccessMsg("");
+
+        try {
+            const res = await fetch("/api/auth/recover", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            });
+
+            if (res.ok) {
+                setSuccessMsg("Sua nova senha foi enviada para o WhatsApp do Administrador/Sistema.");
+            } else {
+                setError("Usuário não encontrado.");
+            }
+        } catch {
+            setError("Erro ao solicitar nova senha.");
+        } finally {
+            setRecovering(false);
         }
     };
 
@@ -99,6 +130,27 @@ export default function LoginPage() {
                             {error}
                         </motion.p>
                     )}
+
+                    {successMsg && (
+                        <motion.p
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="text-green-400 text-xs font-bold text-center bg-green-500/10 py-3 rounded-xl border border-green-500/20"
+                        >
+                            {successMsg}
+                        </motion.p>
+                    )}
+
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={handleRecoverPassword}
+                            disabled={recovering}
+                            className="text-[11px] font-bold text-slate-400 hover:text-cyan-500 transition-colors uppercase tracking-widest"
+                        >
+                            {recovering ? "Enviando..." : "Esqueci minha senha"}
+                        </button>
+                    </div>
 
                     <button
                         type="submit"
