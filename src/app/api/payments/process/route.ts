@@ -45,7 +45,7 @@ export async function POST(req: Request) {
                 });
             } else {
                 client = await (prisma as any).client.create({
-                    data: { name, email, whatsapp, plan: planName || "Extensão Mega_2ai" },
+                    data: { name, email, whatsapp },
                 });
             }
         }
