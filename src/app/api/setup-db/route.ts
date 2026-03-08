@@ -8,8 +8,8 @@ export async function GET(req: Request) {
     try {
         console.log("Forçando sincronização do servidor com o Prisma...");
 
-        // Rode o comando do Prisma usando o terminal do servidor real, passando todas as confirmações
-        const { stdout, stderr } = await execAsync("npx prisma db push --accept-data-loss");
+        // Rode o comando do Prisma usando o terminal do servidor real, passando a versão específica 6.4.1 para não puxar a v7
+        const { stdout, stderr } = await execAsync("npx prisma@6.4.1 db push --accept-data-loss");
 
         console.log("Comando finalizado:", stdout, stderr);
 
