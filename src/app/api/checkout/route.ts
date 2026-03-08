@@ -5,7 +5,14 @@ import prisma from "@/lib/prisma";
 
 export async function POST(req: Request) {
     try {
-        const { name, email, whatsapp, planId, planName, price } = await req.json();
+        const { name, email, whatsapp, planId } = await req.json();
+
+        // Buscar plano no DB para garantir preço real
+        const plan = await (prisma as any).plan.findUnique({ where: { id: planId } });
+        if (!plan) return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
+
+        const planName = plan.name;
+        const numPrice = Number(plan.price);
 
         // 1. Salvar ou atualizar cliente no banco
         const client = await (prisma as any).client.upsert({
@@ -13,8 +20,6 @@ export async function POST(req: Request) {
             update: { name, whatsapp },
             create: { name, email, whatsapp },
         });
-
-        const numPrice = Number(String(price).replace(",", "."));
 
         // 2. Se o plano for GRÁTIS (0,00), processamos a licença imediatamente
         if (numPrice === 0) {

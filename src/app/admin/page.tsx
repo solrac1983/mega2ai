@@ -26,10 +26,14 @@ import {
     MessageSquare,
     Edit,
     Trash2,
-    Lock
+    Lock,
+    Package,
+    Tag
 } from "lucide-react";
 
-type Tab = "dashboard" | "clients" | "settings" | "team";
+import CouponsView from "@/components/CouponsView";
+
+type Tab = "dashboard" | "clients" | "settings" | "team" | "plans" | "coupons";
 
 interface DashboardData {
     stats: {
@@ -37,6 +41,7 @@ interface DashboardData {
         approvedSales: number;
         freeTrials: number;
         totalRevenue: number;
+        monthlyRevenue: number;
         totalAdmins: number;
         conversionRate: string;
     };
@@ -52,6 +57,11 @@ interface DashboardData {
         _count: { id: number };
         _sum: { amount: number };
     }[];
+    topCoupons?: {
+        id: string;
+        code: string;
+        usedCount: number;
+    }[];
 }
 
 interface AdminUser {
@@ -61,6 +71,15 @@ interface AdminUser {
     createdAt: string;
 }
 
+interface Plan {
+    id: string;
+    name: string;
+    description: string | null;
+    price: number | string;
+    durationDays: number | null;
+    icon?: string;
+}
+
 interface Client {
     id: string;
     name: string;
@@ -68,6 +87,8 @@ interface Client {
     whatsapp: string;
     createdAt: string;
     payments: { status: string; createdAt: string }[];
+    licenses?: { planId: string; expiresAt: string | null; plan: Plan; status: string }[];
+    planId?: string;
 }
 
 interface Settings {
@@ -97,6 +118,7 @@ export default function AdminPanel() {
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
     const [admins, setAdmins] = useState<AdminUser[]>([]);
+    const [plans, setPlans] = useState<Plan[]>([]);
     const [settings, setSettings] = useState<Settings>({
         extensionUrl: "",
         customerGroupName: "",
@@ -109,22 +131,25 @@ export default function AdminPanel() {
     const fetchData = async () => {
         setFetching(true);
         try {
-            const [dashRes, clientsRes, settingsRes, adminsRes] = await Promise.all([
+            const [dashRes, clientsRes, settingsRes, adminsRes, plansRes] = await Promise.all([
                 fetch("/api/admin/dashboard"),
                 fetch("/api/admin/clients"),
                 fetch("/api/admin/settings"),
-                fetch("/api/admin/users")
+                fetch("/api/admin/users"),
+                fetch("/api/public/plans")
             ]);
 
             const dash: DashboardData = await dashRes.json();
             const cls: Client[] = await clientsRes.json();
             const sett: Settings = await settingsRes.json();
             const adms: AdminUser[] = await adminsRes.json();
+            const plns: Plan[] = await plansRes.json();
 
             setDashboardData(dash);
             setClients(cls);
             setSettings(sett);
             setAdmins(adms);
+            setPlans(plns);
         } catch (error) {
             console.error(error);
         } finally {
@@ -320,6 +345,18 @@ export default function AdminPanel() {
                         label="Configurações"
                     />
                     <SidebarLink
+                        active={activeTab === "plans"}
+                        onClick={() => setActiveTab("plans")}
+                        icon={<Package size={20} />}
+                        label="Planos"
+                    />
+                    <SidebarLink
+                        active={activeTab === "coupons"}
+                        onClick={() => setActiveTab("coupons")}
+                        icon={<Tag size={20} />}
+                        label="Cupons"
+                    />
+                    <SidebarLink
                         active={activeTab === "team"}
                         onClick={() => setActiveTab("team")}
                         icon={<Lock size={20} />}
@@ -345,6 +382,8 @@ export default function AdminPanel() {
                             {activeTab === "clients" && "Gestão de Leads"}
                             {activeTab === "settings" && "Configurações Globais"}
                             {activeTab === "team" && "Equipe Administrativa"}
+                            {activeTab === "plans" && "Planos Comerciais"}
+                            {activeTab === "coupons" && "Cupons Promocionais"}
                         </h1>
                         <p className="text-slate-500 font-mono text-xs uppercase tracking-widest mt-1">
                             {activeTab === "dashboard" ? "Acompanhamento em tempo real" : "Gerenciamento da plataforma"}
@@ -397,6 +436,15 @@ export default function AdminPanel() {
                                 onAdd={() => setIsAddAdminModalOpen(true)}
                                 onDelete={handleDeleteAdmin}
                             />
+                        )}
+                        {activeTab === "plans" && (
+                            <PlansView
+                                initialPlans={plans}
+                                onRefresh={fetchData}
+                            />
+                        )}
+                        {activeTab === "coupons" && (
+                            <CouponsView />
                         )}
                     </motion.div>
                 </AnimatePresence>
@@ -493,6 +541,21 @@ export default function AdminPanel() {
                                         onChange={e => setEditingClient({ ...editingClient, whatsapp: e.target.value })}
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
                                     />
+                                </div>
+                                <div>
+                                    <label htmlFor="edit_planId" className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Licença/Plano Ativo</label>
+                                    <select
+                                        id="edit_planId"
+                                        value={editingClient.planId !== undefined ? editingClient.planId : (editingClient.licenses?.[0]?.planId || "")}
+                                        onChange={e => setEditingClient({ ...editingClient, planId: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
+                                    >
+                                        <option value="">Nenhuma Licença / Não Atribuir</option>
+                                        {plans.map(p => {
+                                            const durationLabel = p.durationDays ? (p.id === 'free' ? `(${p.durationDays} min)` : `(${p.durationDays} dias)`) : "(Vitalício)";
+                                            return <option key={p.id} value={p.id}>{p.name} {durationLabel}</option>
+                                        })}
+                                    </select>
                                 </div>
                                 <button
                                     type="submit"
@@ -628,78 +691,104 @@ function DashboardView({ data }: { data: DashboardData }) {
     if (!data) return null;
 
     return (
-        <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="space-y-12">
+            {/* Grid Principal */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard icon={<Users className="text-cyan-500" />} label="Total de Leads" value={data.stats.totalClients} />
                 <StatCard
-                    icon={<UserPlus className="text-blue-500" />}
-                    label="Total de Leads"
-                    value={data.stats.totalClients}
+                    icon={<TrendingUp className="text-emerald-500" />}
+                    label="Receita Mensal"
+                    value={`R$ ${data.stats.monthlyRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                 />
                 <StatCard
-                    icon={<RefreshCw className="text-purple-500" />}
-                    label="Testes Grátis"
-                    value={data.stats.freeTrials}
-                />
-                <StatCard
-                    icon={<CheckCircle2 className="text-emerald-500" />}
-                    label="Vendas Pagas"
+                    icon={<CheckCircle2 className="text-cyan-500" />}
+                    label="Conversões Pagas"
                     value={data.stats.approvedSales}
                 />
                 <StatCard
-                    icon={<DollarSign className="text-yellow-500" />}
-                    label="Faturamento"
-                    value={`R$ ${data.stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                />
-                <StatCard
-                    icon={<TrendingUp className="text-cyan-500" />}
-                    label="Conversão (Vendas)"
-                    value={`${data.stats.conversionRate}%`}
-                />
-                <StatCard
-                    icon={<Lock className="text-pink-500" />}
-                    label="Administradores"
-                    value={data.stats.totalAdmins}
+                    icon={<Download className="text-amber-500" />}
+                    label="Trials Gratuitos"
+                    value={data.stats.freeTrials}
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
-                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                        <History size={20} className="text-cyan-500" />
-                        Últimos Leads Registrados
-                    </h3>
-                    <div className="space-y-4">
-                        {data.recentClients.map((client) => (
-                            <div key={client.id} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5">
-                                <div>
-                                    <p className="font-bold text-sm">{client.name}</p>
-                                    <p className="text-slate-500 text-xs">{client.email}</p>
-                                </div>
-                                <div className="text-right text-xs font-mono text-slate-400">
-                                    {new Date(client.createdAt).toLocaleDateString()}
-                                </div>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-12">
+                <div className="xl:col-span-2 space-y-12">
+                    {/* Performance de Tiers */}
+                    <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-slate-900/40 relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+                                <History size={20} className="text-cyan-500" />
+                                Performance de Tiers
+                            </h3>
+                            <div className="text-cyan-500 bg-cyan-500/10 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-cyan-500/20">
+                                Total: R$ {data.stats.totalRevenue.toLocaleString()}
                             </div>
-                        ))}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {data.salesByPlan.map((s, idx) => (
+                                <div key={idx} className="bg-black/40 p-6 rounded-3xl border border-white/5 hover:border-cyan-500/20 transition-all flex justify-between items-center group/item">
+                                    <div>
+                                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Valor Unitário</p>
+                                        <p className="text-lg font-black font-mono">R$ {s.amount.toFixed(2)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-cyan-500 text-lg font-black">{s._count.id} <span className="text-[10px] text-slate-500 uppercase">Vendas</span></p>
+                                        <p className="text-[10px] text-emerald-500/60 font-mono">Subtotal: R$ {s._sum.amount?.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
+
+                    {/* Top Cupons */}
+                    {data.topCoupons && data.topCoupons.length > 0 && (
+                        <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-slate-900/40">
+                            <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-2">
+                                <Tag size={20} className="text-amber-500" />
+                                Top Cupons em Conversão
+                            </h3>
+                            <div className="space-y-4">
+                                {data.topCoupons.map((coupon) => (
+                                    <div key={coupon.id} className="flex items-center justify-between p-5 bg-black/40 rounded-2xl border border-white/5 group hover:border-cyan-500/30 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-cyan-500/10 p-3 rounded-xl">
+                                                <Tag className="w-5 h-5 text-cyan-500" />
+                                            </div>
+                                            <div>
+                                                <span className="font-mono font-black text-cyan-500 tracking-tighter text-lg">{coupon.code}</span>
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Cupom Ativo</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-2xl font-black text-white">{coupon.usedCount}</span>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Usos</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <div className="glass-card p-8 rounded-3xl border border-white/5 bg-slate-900/40">
-                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                        <History size={20} className="text-cyan-500" />
-                        Distribuição por Planos (Pagos)
-                    </h3>
-                    <div className="space-y-4">
-                        {data.salesByPlan.map((plan, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5">
-                                <div>
-                                    <p className="font-bold text-sm">Valor Pago: R$ {plan.amount}</p>
-                                    <p className="text-slate-500 text-xs">{plan._count.id} vendas</p>
+                {/* Novos Leads Side */}
+                <div className="xl:col-span-1 space-y-8">
+                    <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-slate-900/40 h-full">
+                        <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-2">
+                            <Users size={20} className="text-emerald-500" />
+                            Novos Leads
+                        </h3>
+                        <div className="space-y-6">
+                            {data.recentClients.map((client) => (
+                                <div key={client.id} className="flex flex-col gap-1 pb-6 border-b border-white/5 last:border-0 last:pb-0 hover:translate-x-1 transition-transform cursor-pointer group">
+                                    <p className="font-bold text-sm truncate group-hover:text-cyan-400 transition-colors">{client.name}</p>
+                                    <div className="flex items-center justify-between text-[10px] font-mono">
+                                        <span className="text-slate-500">@{client.whatsapp.slice(-8)}</span>
+                                        <span className="text-slate-600 uppercase font-black">{new Date(client.createdAt).toLocaleDateString()}</span>
+                                    </div>
                                 </div>
-                                <div className="text-right text-sm font-bold text-emerald-500">
-                                    R$ {plan._sum.amount.toLocaleString('pt-BR')}
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -781,6 +870,7 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                             <th className="px-8 py-6">Cliente</th>
                             <th className="px-8 py-6">WhatsApp</th>
                             <th className="px-8 py-6">Status Pagamento</th>
+                            <th className="px-8 py-6">Licença (Restante)</th>
                             <th className="px-8 py-6">Data de Registro</th>
                             <th className="px-8 py-6 text-right">Ações</th>
                         </tr>
@@ -818,6 +908,32 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                                             </span>
                                         ) : (
                                             <span className="text-slate-600 text-[10px] uppercase font-bold tracking-widest italic">Apenas Lead</span>
+                                        )}
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        {client.licenses && client.licenses.length > 0 ? (() => {
+                                            const lic = client.licenses[0];
+                                            if (!lic.expiresAt) return <span className="text-emerald-500 font-bold text-xs uppercase bg-emerald-500/10 px-3 py-1 rounded-full">{lic.plan.name} (Vitalício)</span>;
+
+                                            const diffMs = new Date(lic.expiresAt).getTime() - Date.now();
+
+                                            if (lic.planId === "free") {
+                                                const mins = Math.ceil(diffMs / (1000 * 60));
+                                                return mins > 0 ? (
+                                                    <span className="text-cyan-500 font-bold block text-xs">{mins} minutos restantes ({lic.plan.name})</span>
+                                                ) : (
+                                                    <span className="text-red-500 font-bold block text-xs">Expirado ({lic.plan.name})</span>
+                                                );
+                                            } else {
+                                                const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                                                return days > 0 ? (
+                                                    <span className="text-cyan-500 font-bold block text-xs">{days} dias restantes ({lic.plan.name})</span>
+                                                ) : (
+                                                    <span className="text-red-500 font-bold block text-xs">Expirado ({lic.plan.name})</span>
+                                                );
+                                            }
+                                        })() : (
+                                            <span className="text-slate-600 font-mono text-xs">Sem Licença</span>
                                         )}
                                     </td>
                                     <td className="px-8 py-6 text-xs text-slate-400 font-mono">
@@ -1151,6 +1267,146 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string
             <div className="relative z-10">
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
                 <p className="text-xl font-black font-display text-white">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefresh: () => void }) {
+    const [plans, setPlans] = useState<Plan[]>(initialPlans);
+    const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
+    const [message, setMessage] = useState("");
+
+    const handleSaveSingle = async (plan: Plan) => {
+        setLoadingPlanId(plan.id);
+        try {
+            const res = await fetch("/api/admin/plans", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify([plan])
+            });
+            if (res.ok) {
+                setMessage(`Plano ${plan.name} atualizado!`);
+                setTimeout(() => setMessage(""), 3000);
+                onRefresh();
+            } else {
+                alert("Erro ao atualizar!");
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingPlanId(null);
+        }
+    }
+
+    const handleChange = (id: string, field: keyof Plan, value: any) => {
+        setPlans(plans.map(p => p.id === id ? { ...p, [field]: value } : p));
+    }
+
+    return (
+        <div className="space-y-8 pb-20">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                        <Package className="text-cyan-500 w-7 h-7" />
+                        Arquitetura de Ofertas
+                    </h2>
+                    <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-mono">Configure seus tiers de acesso e monetização.</p>
+                </div>
+                {message && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl text-emerald-500 text-xs font-bold"
+                    >
+                        {message}
+                    </motion.div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {plans.map((plan) => (
+                    <motion.div
+                        key={plan.id}
+                        layout
+                        className="glass-card rounded-[2rem] border border-white/5 bg-slate-900/40 overflow-hidden flex flex-col"
+                    >
+                        <div className="p-1 bg-gradient-to-r from-cyan-500/20 to-transparent" />
+                        <div className="p-8 space-y-6 flex-1">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/60">Tier ID: {plan.id}</span>
+                                    <input
+                                        type="text"
+                                        value={plan.name}
+                                        onChange={(e) => handleChange(plan.id, "name", e.target.value)}
+                                        className="text-2xl font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:ring-0 p-0 w-full placeholder:text-slate-700"
+                                        placeholder="Nome do Plano"
+                                    />
+                                </div>
+                                <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
+                                    <ShieldCheck className="w-5 h-5 text-cyan-500" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Preço (Pix)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-mono text-xs">R$</span>
+                                        <input
+                                            type="text"
+                                            value={plan.price}
+                                            onChange={(e) => handleChange(plan.id, "price", e.target.value)}
+                                            className="w-full bg-black/60 border border-white/5 rounded-2xl pl-10 pr-4 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                                        {plan.id === 'free' ? "Minutos" : "Dias de Acesso"}
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={plan.durationDays || ""}
+                                            placeholder="Infinito"
+                                            onChange={(e) => handleChange(plan.id, "durationDays", e.target.value)}
+                                            className="w-full bg-black/60 border border-white/5 rounded-2xl px-4 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                                        />
+                                        <History className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Descrição Comercial</label>
+                                <textarea
+                                    rows={3}
+                                    value={plan.description || ""}
+                                    placeholder="Descreva as vantagens deste plano..."
+                                    onChange={(e) => handleChange(plan.id, "description", e.target.value)}
+                                    className="w-full bg-black/60 border border-white/5 rounded-2xl px-4 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all resize-none min-h-[100px]"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-black/20 border-t border-white/5 flex justify-end">
+                            <button
+                                onClick={() => handleSaveSingle(plan)}
+                                disabled={loadingPlanId === plan.id}
+                                className="bg-white text-slate-950 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-cyan-500 transition-all flex items-center gap-2 disabled:opacity-50 group"
+                            >
+                                {loadingPlanId === plan.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <Save className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                                )}
+                                Sincronizar Tier
+                            </button>
+                        </div>
+                    </motion.div>
+                ))}
             </div>
         </div>
     );

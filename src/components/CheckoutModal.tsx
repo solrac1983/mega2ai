@@ -28,7 +28,12 @@ interface Props {
 export default function CheckoutModal({ isOpen, onClose, planId, planName, price }: Props) {
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState<"info" | "payment" | "success">("info");
-    const [clientData, setClientData] = useState<FormData | null>(null);
+    const [clientData, setClientData] = useState<(FormData & { couponCode?: string }) | null>(null);
+    const [couponCode, setCouponCode] = useState("");
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponFeedback, setCouponFeedback] = useState("");
+    const [finalPrice, setFinalPrice] = useState(price);
+    const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
 
     const {
         register,
@@ -77,7 +82,7 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
             }
 
             // Para planos pagos, salvamos o cliente e avançamos para o pagamento transparente
-            setClientData(data);
+            setClientData({ ...data, couponCode: appliedCoupon || undefined });
             setStep("payment");
 
         } catch (error) {
@@ -85,6 +90,33 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
             alert("Ocorreu um erro ao processar seu pedido. Tente novamente.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const applyCoupon = async () => {
+        if (!couponCode) return;
+        setCouponLoading(true);
+        setCouponFeedback("");
+        try {
+            const res = await fetch("/api/public/coupon", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: couponCode, planId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setCouponFeedback(`Desconto aplicado! -R$ ${data.discountAmount.toFixed(2).replace('.', ',')}`);
+                setFinalPrice(data.discountedPrice.toFixed(2).replace('.', ','));
+                setAppliedCoupon(couponCode);
+            } else {
+                setCouponFeedback(data.error || "Cupom inválido");
+                setFinalPrice(price);
+                setAppliedCoupon(null);
+            }
+        } catch (err) {
+            setCouponFeedback("Erro ao consultar cupom");
+        } finally {
+            setCouponLoading(false);
         }
     };
 
@@ -119,7 +151,7 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                         </h2>
                         <p className="text-slate-400 mb-8">
                             {step === "info"
-                                ? <>Você está adquirindo o plano <span className="text-cyan-400 font-bold">{planName}</span> por <span className="text-white font-bold">R$ {price}</span>.</>
+                                ? <>Você está adquirindo o plano <span className="text-cyan-400 font-bold">{planName}</span> por <span className="text-white font-bold">R$ {finalPrice}</span>.</>
                                 : <>Conclua o pagamento para ativar sua licença.</>
                             }
                         </p>
@@ -168,6 +200,27 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                                     {errors.document && <p className="text-red-500 text-xs mt-1">{errors.document.message}</p>}
                                 </div>
 
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">Cupom de Desconto</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={couponCode}
+                                            onChange={(e) => setCouponCode(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all font-mono uppercase"
+                                            placeholder="CUPOM20"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={applyCoupon}
+                                            disabled={couponLoading}
+                                            className="bg-slate-800 text-white px-4 rounded-xl font-bold uppercase text-xs hover:bg-slate-700 transition"
+                                        >
+                                            {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
+                                        </button>
+                                    </div>
+                                    {couponFeedback && <p className={`text-xs mt-1 font-bold ${appliedCoupon ? 'text-emerald-500' : 'text-red-500'}`}>{couponFeedback}</p>}
+                                </div>
+
                                 <div className="pt-4">
                                     <button
                                         disabled={loading}
@@ -187,7 +240,7 @@ export default function CheckoutModal({ isOpen, onClose, planId, planName, price
                                 <TransparentCheckout
                                     planId={planId}
                                     planName={planName}
-                                    price={price}
+                                    price={finalPrice}
                                     clientInfo={clientData!}
                                     onSuccess={() => {
                                         setStep("success");

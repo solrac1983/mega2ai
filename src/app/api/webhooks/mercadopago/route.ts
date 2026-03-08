@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { sendWhatsapp, sendMedia } from "@/lib/evolution";
 import prisma from "@/lib/prisma";
 import { payment } from "@/lib/mercadopago";
-import { generateLicenseKey } from "@/lib/license";
 
 export async function POST(req: Request) {
     try {
@@ -56,33 +55,72 @@ export async function POST(req: Request) {
                     }
                 });
 
-                // 5. Buscar configurações globais
+                // 5. Buscar configurações globais e Plano
                 const settings = await (prisma as any).settings.findUnique({ where: { id: "global" } });
+                const planId = mpPayment.metadata?.plan_id;
+                const plan = planId ? await (prisma as any).plan.findUnique({ where: { id: planId } }) : null;
+
                 const customerGroupUrl = settings?.customerGroupUrl || "https://chat.whatsapp.com/LF7CWKZf5Dx2VGdsTw0aft";
                 const extensionUrl = settings?.extensionUrl || "https://mega2ai.com/download/mega_2ai_latest.zip";
                 const videoUrl = settings?.videoUrl || "https://mega2ai.com/ajuda";
-                const planName = "Extensão Mega_2ai";
+                const planName = plan?.name || "Extensão Mega_2ai";
 
-                // 6. Enviar Mensagem de 'Parabéns' para o Cliente
-                const message = `🎉 *Parabéns, ${client.name}!* Seu pagamento foi aprovado!\n\n` +
-                    `📦 *Plano Adquirido:* ${planName}\n\n` +
-                    `⏳ Nosso administrador já foi notificado da sua compra e enviará a sua *Chave de Licença* de acesso por aqui mesmo em instantes.\n\n` +
-                    `📹 *Vídeo Tutorial de Instalação:* ${videoUrl}\n` +
-                    `👥 *Acesse nosso Grupo Exclusivo VIP:* ${customerGroupUrl}\n\n` +
-                    `Enquanto aguarda sua licença, já estou enviando abaixo o arquivo da extensão para você baixar. 👇`;
+                // 6. Gerar Licença Automática
+                let licenseKey = "ERRO-CONTATE-SUPORTE";
+                if (plan) {
+                    let expiresAt = null;
+                    if (plan.durationDays) {
+                        expiresAt = new Date();
+                        if (plan.id === "free") {
+                            expiresAt.setMinutes(expiresAt.getMinutes() + plan.durationDays);
+                        } else {
+                            expiresAt.setDate(expiresAt.getDate() + plan.durationDays);
+                        }
+                    }
+
+                    licenseKey = `KEY-${Math.random().toString(36).substring(2, 10).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+                    await (prisma as any).license.create({
+                        data: {
+                            clientId: client.id,
+                            planId: plan.id,
+                            key: licenseKey,
+                            status: "ACTIVE",
+                            expiresAt
+                        }
+                    });
+                }
+
+                // 7. Enviar Mensagem de Entrega para o Cliente
+                const message = `🎉 *Parabéns, ${client.name}!* Seu acesso foi liberado!\n\n` +
+                    `📦 *Plano:* ${planName}\n` +
+                    `🔑 *Sua Chave de Acesso:* \`${licenseKey}\`\n\n` +
+                    `📹 *Como Instalar:* ${videoUrl}\n` +
+                    `👥 *Grupo VIP:* ${customerGroupUrl}\n\n` +
+                    `Instale a extensão, insira sua chave e aproveite! 🚀`;
 
                 await sendWhatsapp(client.whatsapp, message);
-                await sendMedia(client.whatsapp, extensionUrl, "Arquivo de instalação 🚀", "mega_2ai_latest.zip");
+                await sendMedia(client.whatsapp, extensionUrl, "Extensão Mega_2ai 🚀", "mega_2ai.zip");
 
-                // 7. Notificar Administrador
-                const adminMessage = `🚨 *VENDA APROVADA - GERAR LICENÇA!*\n\n` +
+                // 8. Notificar Administrador
+                const adminMessage = `💰 *VENDA AUTOMATIZADA - R$ ${mpPayment.transaction_amount}*\n` +
                     `👤 *Cliente:* ${client.name}\n` +
-                    `📧 *Email:* ${client.email}\n` +
-                    `📱 *WhatsApp:* https://wa.me/${client.whatsapp.replace(/\D/g, "")}\n` +
-                    `💵 *Valor:* R$ ${mpPayment.transaction_amount}\n\n` +
-                    `⚠️ Gere a licença manualmente e envie para o cliente agora!`;
+                    `🔑 *Chave:* ${licenseKey}`;
 
                 await sendWhatsapp(process.env.ADMIN_WHATSAPP || "", adminMessage);
+
+                // 9. Incrementar uso do Cupom (se houver)
+                const couponId = mpPayment.metadata?.coupon_id;
+                if (couponId) {
+                    try {
+                        await (prisma as any).coupon.update({
+                            where: { id: couponId },
+                            data: { usedCount: { increment: 1 } }
+                        });
+                    } catch (err) {
+                        console.error("Erro ao incrementar uso do cupom:", err);
+                    }
+                }
             }
         }
 

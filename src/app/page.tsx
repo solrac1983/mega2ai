@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import CheckoutModal from "@/components/CheckoutModal";
 
-const plans = [
+const defaultPlans = [
   {
     id: "free",
     name: "Teste Grátis",
@@ -88,7 +88,8 @@ const itemVariants: Variants = {
 };
 
 export default function LandingPage() {
-  const [selectedPlan, setSelectedPlan] = useState<typeof plans[0] | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<typeof defaultPlans[0] | null>(null);
+  const [activePlans, setActivePlans] = useState(defaultPlans);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [links, setLinks] = useState({
     communityUrl: "https://chat.whatsapp.com/exemplo-comunidade",
@@ -96,16 +97,40 @@ export default function LandingPage() {
   });
 
   useEffect(() => {
-    fetch("/api/admin/settings")
+    // Buscar configurações globais
+    fetch("/api/public/settings")
       .then(res => res.json())
       .then(data => {
-        if (data.communityGroupUrl) {
+        if (data && data.communityGroupUrl) {
           setLinks({
             communityUrl: data.communityGroupUrl,
             whatsappAdmin: "https://wa.me/5584996706253"
           });
         }
-      });
+      })
+      .catch(err => console.error(err));
+
+    // Buscar planos do banco
+    fetch("/api/public/plans")
+      .then(res => res.json())
+      .then(dbPlans => {
+        if (Array.isArray(dbPlans)) {
+          const mergedPlans = defaultPlans.map(dp => {
+            const dbp = dbPlans.find((p: any) => p.id === dp.id);
+            if (dbp) {
+              return {
+                ...dp,
+                name: dbp.name,
+                price: dbp.price.toFixed(2).replace('.', ','),
+                description: dbp.description || dp.description
+              };
+            }
+            return dp;
+          });
+          setActivePlans(mergedPlans);
+        }
+      })
+      .catch(err => console.error(err));
   }, []);
 
   const { scrollYProgress } = useScroll();
@@ -113,7 +138,7 @@ export default function LandingPage() {
   const y2 = useTransform(scrollYProgress, [0, 1], [0, 200]);
   const rotate = useTransform(scrollYProgress, [0, 1], [0, 45]);
 
-  const handleBuy = (plan: typeof plans[0]) => {
+  const handleBuy = (plan: typeof defaultPlans[0]) => {
     setSelectedPlan(plan);
     setIsModalOpen(true);
   };
@@ -208,7 +233,7 @@ export default function LandingPage() {
               <motion.button
                 whileHover={{ scale: 1.05, x: 10 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleBuy(plans[2])}
+                onClick={() => handleBuy(activePlans[2])}
                 className="group relative flex items-center gap-4 bg-white text-black px-8 py-6 font-black text-xl hover:bg-cyan-400 transition-all w-full md:w-auto neon-glow"
               >
                 INICIAR AGORA
@@ -290,7 +315,7 @@ export default function LandingPage() {
             viewport={{ once: true }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"
           >
-            {plans.map((plan) => (
+            {activePlans.map((plan) => (
               <motion.div
                 key={plan.id}
                 variants={itemVariants}

@@ -88,7 +88,20 @@ export async function POST(req: Request) {
         }
 
         // 2. Criar Pix via Mercado Pago Backend API
-        const priceNumber = Number(price.replace(",", "."));
+        const plan = await (prisma as any).plan.findUnique({ where: { id: planId } });
+        if (!plan) return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
+
+        let priceNumber = Number(plan.price);
+
+        let couponId = null;
+        if (clientInfo.couponCode) {
+            const coupon = await (prisma as any).coupon.findUnique({ where: { code: clientInfo.couponCode.toUpperCase() } });
+            if (coupon && coupon.active && (!coupon.expiresAt || new Date(coupon.expiresAt) > new Date())) {
+                const discount = coupon.isPercentage ? (priceNumber * coupon.discountValue) / 100 : coupon.discountValue;
+                priceNumber = Math.max(0, priceNumber - discount);
+                couponId = coupon.id;
+            }
+        }
 
         let cpf = document ? document.replace(/\D/g, "") : "";
         if (cpf.length < 11) cpf = cpf.padStart(11, "0"); // Padroniza CPF
@@ -109,6 +122,10 @@ export async function POST(req: Request) {
                     }
                 },
                 external_reference: client.id,
+                metadata: {
+                    coupon_id: couponId,
+                    plan_id: planId
+                },
                 notification_url: `${process.env.WEBHOOK_URL}/api/webhooks/mercadopago`
             },
             requestOptions: {

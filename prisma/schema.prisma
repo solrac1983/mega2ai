@@ -22,8 +22,20 @@ model Plan {
   id           String    @id @default(cuid())
   name         String
   price        Float
+  description  String?
   durationDays Int?      // null = lifetime
   licenses     License[]
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  discountValue Float    // can be raw value or percentage. We'll use absolute value (R$ 10) to keep simple, or percentage if <= 100? Let's use percentage.
+  isPercentage  Boolean  @default(true) // true = % discount, false = absolute BRL
+  expiresAt     DateTime?
+  active        Boolean  @default(true)
+  usedCount     Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 model Payment {
@@ -38,16 +50,20 @@ model Payment {
 }
 
 model License {
-  id        String        @id @default(cuid())
-  client    Client        @relation(fields: [clientId], references: [id])
-  clientId  String
-  plan      Plan          @relation(fields: [planId], references: [id])
-  planId    String
-  key       String        @unique
-  status    LicenseStatus @default(ACTIVE)
-  expiresAt DateTime?     // null = lifetime
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  client           Client        @relation(fields: [clientId], references: [id])
+  clientId         String
+  plan             Plan          @relation(fields: [planId], references: [id])
+  planId           String
+  key              String        @unique
+  status           LicenseStatus @default(ACTIVE)
+  machineId        String?       // Locking to one machine
+  lastUsedAt       DateTime?
+  notifiedExpiring Boolean       @default(false)
+  notifiedExpired  Boolean       @default(false)
+  expiresAt        DateTime?     // null = lifetime
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 }
 
 model Settings {
