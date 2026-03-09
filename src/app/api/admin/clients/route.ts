@@ -27,7 +27,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
     try {
-        const { name, email, whatsapp } = await req.json();
+        const { name, email, whatsapp, planId } = await req.json();
 
         if (!name || !email || !whatsapp) {
             return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
@@ -52,6 +52,46 @@ export async function POST(req: Request) {
         const client = await prisma.client.create({
             data: { name, email, whatsapp }
         });
+
+        if (planId) {
+            const plan = await prisma.plan.findUnique({ where: { id: planId } });
+            if (plan) {
+                let expiresAt = null;
+                if (plan.durationDays) {
+                    expiresAt = new Date();
+                    if (plan.id === "free") {
+                        expiresAt.setMinutes(expiresAt.getMinutes() + plan.durationDays);
+                    } else {
+                        expiresAt.setDate(expiresAt.getDate() + plan.durationDays);
+                    }
+                }
+
+                const licenseKey = `MNL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                await prisma.license.create({
+                    data: {
+                        clientId: client.id,
+                        planId: plan.id,
+                        key: licenseKey,
+                        status: "ACTIVE",
+                        expiresAt
+                    }
+                });
+
+                // Notificar Cliente
+                try {
+                    const { sendWhatsapp } = await import("@/lib/evolution");
+                    const message = `🎉 *Bem-vindo ao MEGA 2AI!* \n\n` +
+                        `Olá ${client.name}, seu acesso foi liberado pelo administrador.\n\n` +
+                        `📦 *Plano:* ${plan.name}\n` +
+                        `🔑 *Sua Chave:* \`${licenseKey}\`\n\n` +
+                        `Instale a extensão e aproveite! 🚀`;
+
+                    await sendWhatsapp(client.whatsapp, message);
+                } catch (waError) {
+                    console.error("Erro ao enviar WhatsApp cadastro:", waError);
+                }
+            }
+        }
 
         return NextResponse.json(client);
     } catch (error) {

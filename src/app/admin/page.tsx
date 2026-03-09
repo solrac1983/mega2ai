@@ -114,7 +114,7 @@ export default function AdminPanel() {
     const [isAddAdminModalOpen, setIsAddAdminModalOpen] = useState(false);
     const [newAdmin, setNewAdmin] = useState({ username: "", password: "", name: "" });
     const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
-    const [newClient, setNewClient] = useState({ name: "", email: "", whatsapp: "" });
+    const [newClient, setNewClient] = useState({ name: "", email: "", whatsapp: "", planId: "" });
 
     // Data states
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -269,7 +269,7 @@ export default function AdminPanel() {
             if (res.ok) {
                 setMessage("Cliente criado!");
                 setIsAddClientModalOpen(false);
-                setNewClient({ name: "", email: "", whatsapp: "" });
+                setNewClient({ name: "", email: "", whatsapp: "", planId: "" });
                 fetchData();
                 setTimeout(() => setMessage(""), 3000);
             } else {
@@ -652,6 +652,27 @@ export default function AdminPanel() {
                                         className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all"
                                         placeholder="5584999999999"
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Atribuir Licença (Opcional)</label>
+                                    <select
+                                        value={newClient.planId}
+                                        onChange={(e) => setNewClient({ ...newClient, planId: e.target.value })}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all appearance-none"
+                                    >
+                                        <option value="">Apenas Lead (Sem Licença)</option>
+                                        {plans.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name} {p.durationDays ? (p.id === 'free' ? `(${p.durationDays} min)` : `(${p.durationDays} dias)`) : "(Vitalício)"}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {plans.length === 0 && (
+                                        <p className="text-[10px] text-amber-500 mt-2 font-bold uppercase tracking-tighter">
+                                            ⚠️ Nenhum plano encontrado. Rode o seed/configuração primeiro.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="pt-4">
