@@ -658,6 +658,7 @@ export default function AdminPanel() {
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Atribuir Licença (Opcional)</label>
                                     <select
                                         value={newClient.planId}
+                                        title="Atribuir Licença"
                                         onChange={(e) => setNewClient({ ...newClient, planId: e.target.value })}
                                         className="w-full bg-black/60 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:border-cyan-500/50 outline-none transition-all appearance-none"
                                     >
@@ -1418,6 +1419,10 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
     const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
     const [message, setMessage] = useState("");
 
+    useEffect(() => {
+        setPlans(initialPlans);
+    }, [initialPlans]);
+
     const handleSaveSingle = async (plan: Plan) => {
         setLoadingPlanId(plan.id);
         try {
@@ -1454,6 +1459,34 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
                     </h2>
                     <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-mono">Configure seus tiers de acesso e monetização.</p>
                 </div>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={async () => {
+                            if (confirm("Deseja criar os planos padrão (Free, Expert, VIP)?")) {
+                                await fetch("/api/seed-db");
+                                onRefresh();
+                            }
+                        }}
+                        className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-amber-500 hover:text-white transition-all"
+                    >
+                        Resetar/Seed Planos
+                    </button>
+                    <button
+                        onClick={() => {
+                            const newPlan: Plan = {
+                                id: `plan_${Date.now()}`,
+                                name: "Novo Plano",
+                                description: "",
+                                price: "0.00",
+                                durationDays: 30
+                            };
+                            setPlans([...plans, newPlan]);
+                        }}
+                        className="bg-cyan-500 text-slate-950 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-cyan-400 transition-all shadow-lg"
+                    >
+                        + Novo Plano
+                    </button>
+                </div>
                 {message && (
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
@@ -1464,6 +1497,16 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
                     </motion.div>
                 )}
             </div>
+
+            {plans.length === 0 && (
+                <div className="glass-card p-12 rounded-[2.5rem] border border-white/5 bg-slate-900/40 text-center space-y-4">
+                    <Package className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+                    <h3 className="text-xl font-black uppercase tracking-tighter">Nenhum plano ativo</h3>
+                    <p className="text-slate-500 text-sm max-w-md mx-auto">
+                        Sua vitrine está vazia. Você pode restaurar os planos padrão (Free, Expert, VIP) clicando em &quot;Resetar/Seed&quot; ou criar um do zero.
+                    </p>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {plans.map((plan) => (
@@ -1480,6 +1523,7 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
                                     <input
                                         type="text"
                                         value={plan.name}
+                                        title="Nome do Plano"
                                         onChange={(e) => handleChange(plan.id, "name", e.target.value)}
                                         className="text-2xl font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:ring-0 p-0 w-full placeholder:text-slate-700"
                                         placeholder="Nome do Plano"

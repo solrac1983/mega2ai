@@ -23,15 +23,22 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
         }
 
-        // Atualizar todos os planos na transação
+        // Atualizar ou Criar planos na transação
         const updatePromises = plans.map((plan: any) =>
-            prisma.plan.update({
+            prisma.plan.upsert({
                 where: { id: plan.id },
-                data: {
+                create: {
+                    id: plan.id,
                     name: plan.name,
                     price: parseFloat(plan.price),
                     description: plan.description || "",
-                    durationDays: plan.durationDays === null ? null : parseInt(plan.durationDays, 10),
+                    durationDays: plan.durationDays === null || plan.durationDays === "" ? null : parseInt(plan.durationDays, 10),
+                },
+                update: {
+                    name: plan.name,
+                    price: parseFloat(plan.price),
+                    description: plan.description || "",
+                    durationDays: plan.durationDays === null || plan.durationDays === "" ? null : parseInt(plan.durationDays, 10),
                 }
             })
         );
