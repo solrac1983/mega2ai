@@ -1,31 +1,25 @@
 import { NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { seed } from "../../../../prisma/seed";
 
 export async function GET() {
     try {
         console.log("Iniciando Seed do Banco de Dados...");
 
-        // Rodar o comando de seed definido no package.json
-        const { stdout, stderr } = await execAsync("npx prisma db seed");
+        const result = await seed();
 
-        console.log("Seed finalizado:", stdout, stderr);
+        console.log("Seed finalizado com sucesso!");
 
         return NextResponse.json({
             success: true,
             message: "Banco de dados POPULADO com os planos padrão!",
-            log: stdout,
-            error: stderr
+            result
         });
 
     } catch (error: any) {
         console.error("Erro no Seed:", error);
         return NextResponse.json({
             error: "Falha ao rodar o seed",
-            message: error.message,
-            output: error.stdout?.toString()
+            message: error.message
         }, { status: 500 });
     }
 }

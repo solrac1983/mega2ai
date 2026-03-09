@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function seed() {
     const plansData = [
         { id: "free", name: "Teste Grátis", price: 0.00, durationDays: 0 },
         { id: "1day", name: "Acesso 24h", price: 49.90, durationDays: 1 },
@@ -35,14 +35,20 @@ async function main() {
         }
     });
 
-    console.log("Seed concluído: Planos, links e admin inicial configurados.");
+    return { plans: plansData.length };
 }
 
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+if (require.main === module) {
+    seed()
+        .then(() => {
+            console.log("Seed concluído!");
+            process.exit(0);
+        })
+        .catch((e) => {
+            console.error(e);
+            process.exit(1);
+        })
+        .finally(async () => {
+            await prisma.$disconnect();
+        });
+}
