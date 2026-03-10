@@ -48,18 +48,18 @@ export async function PATCH(
                     });
                 }
 
-                // Notificar Cliente sobre a Licença Manual/Atualizada
+                // Notificar Cliente (Kit Completo)
                 try {
-                    const { sendWhatsapp } = await import("@/lib/evolution");
-                    const message = `🛠️ *Atualização de Acesso!* \n\n` +
-                        `Olá ${client.name}, seu plano foi atualizado pelo administrador.\n\n` +
-                        `📦 *Novo Plano:* ${plan.name}\n` +
-                        `🔑 *Sua Chave:* \`${licenseKey}\`\n\n` +
-                        `Acesse sua extensão agora para verificar seu novo período de uso! 🚀`;
-
-                    await sendWhatsapp(client.whatsapp, message);
+                    const { sendWelcomeKit } = await import("@/lib/notifications");
+                    await sendWelcomeKit(
+                        client.id,
+                        licenseKey,
+                        plan.name,
+                        client.whatsapp,
+                        client.name
+                    );
                 } catch (waError) {
-                    console.error("Erro ao enviar WhatsApp manual:", waError);
+                    console.error("Erro ao enviar WhatsApp kit boas-vindas update:", waError);
                 }
             }
         }

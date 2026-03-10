@@ -448,6 +448,7 @@ export default function AdminPanel() {
                                     setIsDeleteDialogOpen(true);
                                 }}
                                 onAdd={() => setIsAddClientModalOpen(true)}
+                                setLoading={setLoading}
                             />
                         )}
                         {activeTab === "settings" && (
@@ -580,10 +581,9 @@ export default function AdminPanel() {
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-cyan-500/50"
                                     >
                                         <option value="">Nenhuma Licença / Não Atribuir</option>
-                                        {plans.map(p => {
-                                            const durationLabel = p.durationDays ? (p.id === 'free' ? `(${p.durationDays} min)` : `(${p.durationDays} dias)`) : "(Vitalício)";
-                                            return <option key={p.id} value={p.id}>{p.name} {durationLabel}</option>
-                                        })}
+                                        {plans.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <button
@@ -665,7 +665,7 @@ export default function AdminPanel() {
                                         <option value="">Apenas Lead (Sem Licença)</option>
                                         {plans.map(p => (
                                             <option key={p.id} value={p.id}>
-                                                {p.name} {p.durationDays ? (p.id === 'free' ? `(${p.durationDays} min)` : `(${p.durationDays} dias)`) : "(Vitalício)"}
+                                                {p.name}
                                             </option>
                                         ))}
                                     </select>
@@ -917,14 +917,15 @@ function DashboardView({ data }: { data: DashboardData }) {
     );
 }
 
-function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, onEdit, onDelete, onAdd }: {
+function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, onEdit, onDelete, onAdd, setLoading }: {
     clients: Client[],
     selectedClients: string[],
     setSelectedClients: (ids: string[]) => void,
     onNotify: () => void,
     onEdit: (client: Client) => void,
     onDelete: (id: string) => void,
-    onAdd: () => void
+    onAdd: () => void,
+    setLoading: (loading: boolean) => void
 }) {
     const [search, setSearch] = useState("");
 
@@ -1082,7 +1083,31 @@ function ClientsView({ clients, selectedClients, setSelectedClients, onNotify, o
                                         {new Date(client.createdAt).toLocaleString()}
                                     </td>
                                     <td className="px-8 py-6 text-right">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex justify-end gap-1">
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (!confirm(`Deseja reenviar o kit de acesso para ${client.name}?`)) return;
+                                                    setLoading(true);
+                                                    try {
+                                                        const res = await fetch(`/api/admin/clients/${client.id}/access`, { method: "POST" });
+                                                        if (res.ok) {
+                                                            alert("Kit de acesso enviado!");
+                                                        } else {
+                                                            const err = await res.json();
+                                                            alert(err.error || "Erro ao enviar");
+                                                        }
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                    } finally {
+                                                        setLoading(false);
+                                                    }
+                                                }}
+                                                className="p-2 text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-all"
+                                                title="Enviar Kit de Acesso"
+                                            >
+                                                <Send size={16} />
+                                            </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onEdit(client); }}
                                                 className="p-2 text-slate-500 hover:text-cyan-500 hover:bg-cyan-500/10 rounded-xl transition-all"
@@ -1462,7 +1487,7 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
                 <div className="flex items-center gap-4">
                     <button
                         onClick={async () => {
-                            if (confirm("Deseja criar os planos padrão (Free, Expert, VIP)?")) {
+                            if (confirm("Deseja criar os planos padrão (1 dia, 7 dias, 30 dias, Vitalício)?")) {
                                 await fetch("/api/seed-db");
                                 onRefresh();
                             }
@@ -1503,7 +1528,7 @@ function PlansView({ initialPlans, onRefresh }: { initialPlans: Plan[], onRefres
                     <Package className="w-12 h-12 text-slate-700 mx-auto mb-4" />
                     <h3 className="text-xl font-black uppercase tracking-tighter">Nenhum plano ativo</h3>
                     <p className="text-slate-500 text-sm max-w-md mx-auto">
-                        Sua vitrine está vazia. Você pode restaurar os planos padrão (Free, Expert, VIP) clicando em &quot;Resetar/Seed&quot; ou criar um do zero.
+                        Sua vitrine está vazia. Você pode restaurar os planos padrão (1 dia, 7 dias, 30 dias, Vitalício) clicando em &quot;Resetar/Seed&quot; ou criar um do zero.
                     </p>
                 </div>
             )}

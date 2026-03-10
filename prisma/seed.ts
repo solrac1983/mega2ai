@@ -5,11 +5,10 @@ const prisma = new PrismaClient();
 
 export async function seed() {
     const plansData = [
-        { id: "free", name: "Teste Grátis", price: 0.00, durationDays: 0 },
-        { id: "1day", name: "Acesso 24h", price: 49.90, durationDays: 1 },
-        { id: "7days", name: "Semana Turbo", price: 79.90, durationDays: 7 },
-        { id: "30days", name: "Expert Mensal", price: 159.90, durationDays: 30 },
-        { id: "lifetime", name: "VIP Vitalício", price: 599.90, durationDays: null },
+        { id: "1day", name: "1 dia", price: 49.90, durationDays: 1 },
+        { id: "7days", name: "7 dias", price: 79.90, durationDays: 7 },
+        { id: "30days", name: "30 dias", price: 159.90, durationDays: 30 },
+        { id: "lifetime", name: "Vitalício", price: 599.90, durationDays: null },
     ];
 
     for (const plan of plansData) {

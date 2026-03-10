@@ -91,16 +91,19 @@ export async function POST(req: Request) {
                     });
                 }
 
-                // 7. Enviar Mensagem de Entrega para o Cliente
-                const message = `🎉 *Parabéns, ${client.name}!* Seu acesso foi liberado!\n\n` +
-                    `📦 *Plano:* ${planName}\n` +
-                    `🔑 *Sua Chave de Acesso:* \`${licenseKey}\`\n\n` +
-                    `📹 *Como Instalar:* ${videoUrl}\n` +
-                    `👥 *Grupo VIP:* ${customerGroupUrl}\n\n` +
-                    `Instale a extensão, insira sua chave e aproveite! 🚀`;
-
-                await sendWhatsapp(client.whatsapp, message);
-                await sendMedia(client.whatsapp, extensionUrl, "Extensão Mega_2ai 🚀", "mega_2ai.zip");
+                // 7. Enviar Mensagem de Entrega para o Cliente (Kit Completo)
+                try {
+                    const { sendWelcomeKit } = await import("@/lib/notifications");
+                    await sendWelcomeKit(
+                        client.id,
+                        licenseKey,
+                        planName,
+                        client.whatsapp,
+                        client.name
+                    );
+                } catch (kitError) {
+                    console.error("Erro ao enviar kit via webhook:", kitError);
+                }
 
                 // 8. Notificar Administrador
                 const adminMessage = `💰 *VENDA AUTOMATIZADA - R$ ${mpPayment.transaction_amount}*\n` +

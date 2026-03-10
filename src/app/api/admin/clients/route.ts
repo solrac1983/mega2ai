@@ -77,18 +77,18 @@ export async function POST(req: Request) {
                     }
                 });
 
-                // Notificar Cliente
+                // Notificar Cliente (Kit Completo)
                 try {
-                    const { sendWhatsapp } = await import("@/lib/evolution");
-                    const message = `🎉 *Bem-vindo ao MEGA 2AI!* \n\n` +
-                        `Olá ${client.name}, seu acesso foi liberado pelo administrador.\n\n` +
-                        `📦 *Plano:* ${plan.name}\n` +
-                        `🔑 *Sua Chave:* \`${licenseKey}\`\n\n` +
-                        `Instale a extensão e aproveite! 🚀`;
-
-                    await sendWhatsapp(client.whatsapp, message);
+                    const { sendWelcomeKit } = await import("@/lib/notifications");
+                    await sendWelcomeKit(
+                        client.id,
+                        licenseKey,
+                        plan.name,
+                        client.whatsapp,
+                        client.name
+                    );
                 } catch (waError) {
-                    console.error("Erro ao enviar WhatsApp cadastro:", waError);
+                    console.error("Erro ao enviar WhatsApp kit boas-vindas:", waError);
                 }
             }
         }
