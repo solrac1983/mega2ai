@@ -170,7 +170,7 @@ export default function LandingPage() {
   const y2 = useTransform(scrollYProgress, [0, 1], [0, 200]);
   const rotate = useTransform(scrollYProgress, [0, 1], [0, 45]);
 
-  const handleBuy = (plan: typeof defaultPlans[0]) => {
+  const handleBuy = (plan: StaticPlan) => {
     setSelectedPlan(plan);
     setIsModalOpen(true);
   };
