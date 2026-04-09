@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mega2ai_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password123}
+      POSTGRES_DB: ${DB_NAME:-mega2ai}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - mega2ai_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mega2ai_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password123}@db:5432/${DB_NAME:-mega2ai}?schema=public
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+      NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE}
+      ADMIN_WHATSAPP: ${ADMIN_WHATSAPP}
+      LICENSE_API_URL: ${LICENSE_API_URL}
+      LICENSE_API_KEY: ${LICENSE_API_KEY}
+      LICENSE_USER: ${LICENSE_USER}
+      LICENSE_PASS: ${LICENSE_PASS}
+    depends_on:
+      - db
+    networks:
+      - mega2ai_network
+
+networks:
+  mega2ai_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

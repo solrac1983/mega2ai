@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  whatsapp  String    @unique
+  credits   Int       @default(0)
+  payments  Payment[]
+  licenses  License[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum PlanType {
+  LICENSE
+  CREDITS
+}
+
+model Plan {
+  id           String    @id @default(cuid())
+  name         String
+  price        Float
+  description  String?
+  durationDays Int?      // null = lifetime
+  credits      Int?      // number of credits, for credit-based plans
+  type         PlanType  @default(LICENSE)
+  originalPrice Float?   // Preço riscado (DE: R$ X)
+  licenses     License[]
+  payments     Payment[]
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  discountValue Float    // can be raw value or percentage. We'll use absolute value (R$ 10) to keep simple, or percentage if <= 100? Let's use percentage.
+  isPercentage  Boolean  @default(true) // true = % discount, false = absolute BRL
+  expiresAt     DateTime?
+  active        Boolean  @default(true)
+  usedCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  client       Client        @relation(fields: [clientId], references: [id])
+  clientId     String
+  plan         Plan?         @relation(fields: [planId], references: [id])
+  planId       String?
+  amount       Float
+  status       PaymentStatus @default(PENDING)
+  mpPaymentId  String?       @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model License {
+  id               String        @id @default(cuid())
+  client           Client        @relation(fields: [clientId], references: [id])
+  clientId         String
+  plan             Plan          @relation(fields: [planId], references: [id])
+  planId           String
+  key              String        @unique
+  status           LicenseStatus @default(ACTIVE)
+  machineId        String?       // Locking to one machine
+  lastUsedAt       DateTime?
+  notifiedExpiring Boolean       @default(false)
+  notifiedExpired  Boolean       @default(false)
+  expiresAt        DateTime?     // null = lifetime
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Settings {
+  id                String   @id @default("global")
+  extensionUrl      String   @default("https://mega2ai.com/download/mega_2ai_v2.zip")
+  customerGroupName String   @default("Grupo VIP de Alunos")
+  customerGroupUrl  String   @default("https://chat.whatsapp.com/exemplo-clientes")
+  communityGroupName String  @default("Comunidade Mega_2ai")
+  communityGroupUrl String   @default("https://chat.whatsapp.com/exemplo-comunidade")
+  videoUrl          String   @default("https://youtube.com/link-do-tutorial")
+  updatedAt         DateTime @updatedAt
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  FAILED
+  REFUNDED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
