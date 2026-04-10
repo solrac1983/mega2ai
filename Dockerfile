@@ -35,5 +35,5 @@ ENV NODE_ENV production
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Inicia a aplicação
-CMD ["node", "server.js"]
+# Inicia a aplicação (com atualização de schema do DB antes)
+CMD ["sh", "-c", "npx prisma db push && node server.js"]
