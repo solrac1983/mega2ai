@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, PlanType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 export async function seed() {
-    const plansData = [
+    const plansData: any[] = [
         // Licenças
         { id: "1day", name: "1 dia", price: 49.90, durationDays: 1, type: "LICENSE", credits: null },
         { id: "7days", name: "7 dias", price: 79.90, durationDays: 7, type: "LICENSE", credits: null },
